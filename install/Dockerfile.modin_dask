@@ -1,0 +1,7 @@
+FROM df-benchmarks
+
+ENV MODIN_ENGINE=dask
+RUN python3.9 -m pip install aiohttp
+RUN python3.9 -m pip install aioredis
+RUN python3.9 -m pip install dask
+RUN python3.9 -m pip install modin

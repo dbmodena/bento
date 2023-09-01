@@ -1,0 +1,16 @@
+datasets/
+results/
+pipeline_output/
+*.png
+*.pyc
+*.lock
+*.venv
+*.vscode
+**/__pycache__
+**/.ipynb_checkpoints
+**/dask-worker-space
+*.txt
+*.log
+*.csv
+*.tar.gz
+*.save

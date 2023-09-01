@@ -1,0 +1,19 @@
+FROM df-benchmarks
+FROM rapidsai/rapidsai:cuda11.2-base-ubuntu18.04-py3.9
+
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:$LD_LIBRARY_PATH
+WORKDIR /app
+COPY requirements.txt .
+# RUN python3.9 -m pip install docker_py==1.10.6
+# RUN python3.9 -m pip install haversine==2.8.0
+# RUN python3.9 -m pip install pandas
+# RUN python3.9 -m pip install psutil==5.9.3
+# RUN python3.9 -m pip install numpy
+# RUN python3.9 -m pip install ansicolors
+# RUN python3.9 -m pip install pydantic
+# RUN python3.9 -m pip install pydantic_factories
+#RUN python3.9 -m pip install cupy-cuda112
+RUN python3.9 -m pip install -r requirements.txt
+
+
+ENTRYPOINT ["python3.9", "-u", "run_algorithm.py"]

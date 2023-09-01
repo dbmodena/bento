@@ -1,0 +1,10 @@
+FROM df-benchmarks
+
+ENV MODIN_ENGINE=ray
+RUN python3.9 -m pip install aiohttp
+RUN python3.9 -m pip install aioredis
+RUN python3.9 -m pip install ray
+RUN python3.9 -m pip install modin
+
+ENV RAY_verbose_spill_logs=0
+#ENV RAY_ENV_TMP_DIR /data3/angelo/ray/tmp/

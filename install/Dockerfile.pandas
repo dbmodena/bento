@@ -1,0 +1,4 @@
+FROM df-benchmarks
+
+RUN python3.9 -m pip install haversine
+RUN python3.9 -m pip install pandas=1.5.1

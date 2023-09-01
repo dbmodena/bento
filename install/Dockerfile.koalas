@@ -1,0 +1,12 @@
+FROM df-benchmarks
+
+
+RUN apt-get update && \
+    apt-get install -y openjdk-8-jdk
+
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
+
+ENV PATH $JAVA_HOME/bin:$PATH
+
+RUN python3.9 -m pip install koalas
+RUN python3.9 -m pip install --upgrade databricks

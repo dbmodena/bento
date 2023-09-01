@@ -1,0 +1,4 @@
+FROM df-benchmarks
+
+RUN python3.9 -m pip install dask_ml
+RUN python3.9 -m pip install dask[dataframe]

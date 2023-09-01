@@ -1,0 +1,5 @@
+FROM df-benchmarks
+
+ENV MODIN_ENGINE=Native
+RUN python3.9 -m pip install pyhdk
+RUN python3.9 -m pip install modin

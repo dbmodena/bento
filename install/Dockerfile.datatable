@@ -1,0 +1,4 @@
+FROM df-benchmarks
+
+RUN pip install pip --upgrade
+RUN pip install datatable
