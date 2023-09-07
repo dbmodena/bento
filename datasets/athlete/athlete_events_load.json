@@ -1,0 +1,17 @@
+{
+    "Input": [
+        {
+            "method": "load_dataset",
+            "input": {
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ],
+    "output": [{
+        "method": "to_parquet",
+        "input": {}
+    }]
+}

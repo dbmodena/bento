@@ -1,0 +1,1339 @@
+{
+    "Input": [
+        {
+            "method": "load_dataset",
+            "input": {
+                "sep": ","
+            },
+            "input_dask": {
+                "sep": ",",
+                "assume_missing": "True",
+                "dtype": "object"
+            },
+            "input_koalas": {
+                "sep": ",",
+                "assume_missing": "True"
+            },
+            "input_vaex1": {
+                "sep": ",",
+                "low_memory": "False"
+            },
+            "input_vaex": {
+                "lazy": true
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ],
+    "EDA": [
+        {
+            "method": "get_columns",
+            "input": {}
+        },
+        {
+            "method": "locate_null_values",
+            "input": {
+                "column": "all"
+            }
+        },
+        {
+            "method": "sort",
+            "input": {
+                "columns": [
+                    "Year"
+                ]
+            },
+            "input_dask": {
+                "columns": [
+                    "Year"
+                ],
+                "cast": {
+                    "Year": "int64"
+                }
+            }
+        },
+        {
+            "method": "query",
+            "input": {
+                "query": "Year >= 1960 & Season == 'Summer'"
+            },
+            "input_rapids": {
+                "query": "(Year >= 1960 and Season == 'Summer')"
+            },
+            "input_datatable": {
+                "query": "((dt.f.Year >= 1960) & (dt.f.Season == 'Summer'))"
+            },
+            "input_polars": {
+                "query": "(pl.col('Year') >= 1960) & (pl.col('Season') == 'Summer')",
+                "req_compile": [
+                    "query"
+                ],
+                "extra_commands": [
+                    "import polars as pl"
+                ]
+            },
+            "input_spark": {
+                "query": "(fn.col('Year') >= 1960) & (fn.col('Season') == 'Summer')",
+                "req_compile": [
+                    "query"
+                ],
+                "extra_commands": [
+                    "import pyspark.sql.functions as fn"
+                ]
+            },
+            "input_pyspark_pandas": {
+                "query": "('Year' >= 1960) and ('Season' == 'Summer')"
+            },            
+            "input_vaex":{
+                "query": "Year >= 1960 and Season == 'Summer'"
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ],
+    "data_transformation": [
+        {
+            "method": "join",
+            "input": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv')"
+                ]
+            },
+            "input_datatable": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv')",
+                    "import datatable as dt",
+                    "noc_region=dt.Frame(noc_region)"
+                ]
+            },
+            "input_pyspark_pandas": {
+                "other": "noc_region",
+                "left_on": ["NOC"],
+                "right_on": ["NOC"],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pyspark.pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv')"
+                ]
+            },
+            "input_dask": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv')",
+                    "import dask.dataframe as dd",
+                    "noc_region=dd.from_pandas(noc_region, npartitions=1)"
+                ]
+            },
+            "input_modin_dask": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv', dtype='object')",
+                    "import modin.pandas as mpd",
+                    "noc_region=mpd.DataFrame(noc_region)"
+                ]
+            },
+            "input_modin_ray": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv', dtype='object')",
+                    "import modin.pandas as mpd",
+                    "noc_region=mpd.DataFrame(noc_region)"
+                ]
+            },
+            "input_vaex": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv', sep=',', header=0)",
+                    "import vaex",
+                    "noc_region=vaex.from_pandas(noc_region)"
+                ]
+            },
+            "input_rapids": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "import cudf",
+                    "noc_region=cudf.from_pandas(pd.read_csv('datasets/athlete/noc_regions.csv', sep=','))"
+                ]
+            },
+            "input_polars": {
+                "other": "noc_region",
+                "left_on": "NOC",
+                "right_on": "NOC",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv', dtype='object')",
+                    "import polars as pl",
+                    "noc_region=pl.from_pandas(noc_region).lazy()"
+                ]
+            },
+            "input_spark": {
+                "other": "noc_region",
+                "left_on": [
+                    "NOC"
+                ],
+                "right_on": [
+                    "NOC"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "from pyspark.sql import DataFrame, SparkSession",
+                    "sparkSession=SparkSession.builder.getOrCreate()",
+                    "import pandas as pd",
+                    "noc_region=pd.read_csv('datasets/athlete/noc_regions.csv')",
+                    "from pyspark.sql.types import *",
+                    "schema = StructType([StructField('NOC', StringType(), True), StructField('region', StringType(), True), StructField('notes', StringType(), True)])",
+                    "noc_region=sparkSession.createDataFrame(noc_region, schema=schema)",
+                    "noc_region.persist()"
+                ]
+            }
+        },
+        {
+            "method": "delete_columns",
+            "input": {
+                "columns": [
+                    "notes"
+                ]
+            }
+        },
+        {
+            "method": "rename_columns",
+            "input": {
+                "columns": {
+                    "region": "Country"
+                }
+            }
+        },
+        {
+            "method": "delete_columns",
+            "input": {
+                "columns": [
+                    "Team"
+                ]
+            }
+        },
+        {
+            "method": "calc_column",
+            "input": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Singapore' if x[1] == 'SGP' else x[0]"
+            },
+            "input_vaex": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Singapore' if y == 'SGP' else x"
+            },
+            "input_spark": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Singapore' if y == 'SGP' else x"
+            },
+            "input_polars": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Singapore' if x['NOC'] == 'SGP' else x['Country']"
+            }
+        },
+        {
+            "method": "calc_column",
+            "input": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Refugee Olympic Athletes' if x[1] == 'ROT' else x[0]"
+            },
+            "input_vaex": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Refugee Olympic Athletes' if y == 'ROT' else x"
+            },
+            "input_spark": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Refugee Olympic Athletes' if y == 'ROT' else x"
+            },
+            "input_polars": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Refugee Olympic Athletes' if x['NOC'] == 'ROT' else x['Country']"
+            }
+        },
+        {
+            "method": "calc_column",
+            "input": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Unknown' if x[1] == 'UNK' else x[0]"
+            },
+            "input_vaex": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Unknown' if y == 'UNK' else x"
+            },
+            "input_spark": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Unknown' if y == 'UNK' else x"
+            },
+            "input_polars": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Unknown' if x['NOC'] == 'UNK' else x['Country']"
+            }
+        },
+        {
+            "method": "calc_column",
+            "input": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Tuvalu' if x[1] == 'TUV' else x[0]"
+            },
+            "input_vaex": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Tuvalu' if y == 'TUV' else x"
+            },
+            "input_spark": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x, y: 'Tuvalu' if y == 'TUV' else x"
+            },
+            "input_polars": {
+                "col_name": "Country",
+                "columns": [
+                    "Country",
+                    "NOC"
+                ],
+                "f": "lambda x: 'Tuvalu' if x['NOC'] == 'TUV' else x['Country']"
+            }
+        },
+        {
+            "method": "rename_columns",
+            "input": {
+                "columns": {
+                    "Country": "Team"
+                }
+            }
+        },
+        {
+            "method": "cast_columns_types",
+            "input": {
+                "dtypes": {
+                    "Team": "str"
+                }
+            },
+            "input_polars": {
+                "dtypes": {
+                    "Team": "polars.Utf8"
+                },
+                "req_compile": [
+                    "dtypes"
+                ],
+                "extra_commands": [
+                    "import polars"
+                ]
+            },
+            "input_spark": {
+                "dtypes": {
+                    "Team": "T.StringType()"
+                },
+                "req_compile": [
+                    "dtypes"
+                ],
+                "extra_commands": [
+                    "import pyspark.sql.types as T"
+                ]
+            },
+            "input_vaex": {
+                "dtypes": {
+                    "Team": "string"
+                }
+            }
+        },
+        {
+            "method": "join",
+            "input": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp = w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()"
+                ]
+            },
+            "input_datatable": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp = w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()",
+                    "import datatable as dt",
+                    "w_gdp = dt.Frame(w_gdp)"
+                ]
+            },
+            "input_pyspark_pandas": {
+                "other": "w_gdp",
+                "left_on": ["Team"],
+                "right_on": ["Country Name"],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pyspark.pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp = w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()"
+                ]
+            },
+            "input_rapids": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import cudf as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()"
+                ]
+            },
+            "input_spark": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Team"
+                ],
+                "right_on": [
+                    "Country Name"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()",
+                    "from pyspark.sql import DataFrame, SparkSession",
+                    "spark = SparkSession.builder.getOrCreate()",
+                    "w_gdp = spark.createDataFrame(w_gdp)"
+                ]
+            },
+            "input_polars": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()",
+                    "import polars as pl",
+                    "w_gdp = pl.from_pandas(w_gdp).lazy()"
+                ]
+            },
+            "input_vaex": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()",
+                    "import vaex",
+                    "w_gdp = vaex.from_pandas(w_gdp)"
+                ]
+            },
+            "input_dask": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import dask.dataframe as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv', dtype='object')",
+                    "w_gdp = w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()"
+                ]
+            },
+            "input_modin_dask": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()",
+                    "import modin.pandas as mpd",
+                    "w_gdp = mpd.DataFrame(w_gdp)"
+                ]
+            },
+            "input_modin_ray": {
+                "other": "w_gdp",
+                "left_on": "Team",
+                "right_on": "Country Name",
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "w_gdp = w_gdp[['Country Name', 'Country Code']].drop_duplicates()",
+                    "import modin.pandas as mpd",
+                    "w_gdp = mpd.DataFrame(w_gdp)"
+                ]
+            }
+        },
+        {
+            "method": "delete_columns",
+            "input": {
+                "columns": [
+                    "Country Name"
+                ]
+            },
+            "input_polars": {
+                "pass": ""
+            }
+        },
+        {
+            "method": "join",
+            "input": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])"
+                ]
+            },
+            "input_datatable": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import datatable as dt",
+                    "w_gdp = dt.Frame(w_gdp)"
+                ]
+            },
+            "input_pyspark_pandas": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pyspark.pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp = w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])"
+                ]
+            },
+            "input_spark": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "from pyspark.sql import DataFrame, SparkSession",
+                    "spark = SparkSession.builder.getOrCreate()",
+                    "w_gdp = spark.createDataFrame(w_gdp)"
+                ]
+            },
+            "input_polars": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import polars as pl",
+                    "w_gdp = pl.from_pandas(w_gdp).lazy()"
+                ]
+            },
+            "input_rapids": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import cudf",
+                    "w_gdp = cudf.from_pandas(w_gdp)"
+                ]
+            },
+            "input_vaex": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import vaex",
+                    "w_gdp = vaex.from_pandas(w_gdp)"
+                ]
+            },
+            "input_dask": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import dask.dataframe as dd",
+                    "w_gdp = dd.from_pandas(w_gdp, npartitions=1)"
+                ]
+            },
+            "input_modin_dask": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import modin.pandas as mpd",
+                    "w_gdp = mpd.DataFrame(w_gdp)"
+                ]
+            },
+            "input_modin_ray": {
+                "other": "w_gdp",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_gdp = pd.read_csv('datasets/athlete/world_gdp.csv')",
+                    "w_gdp.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_gdp = pd.melt(w_gdp, id_vars = ['Country Name', 'Country Code'], var_name = 'Year', value_name = 'GDP')",
+                    "w_gdp['Year'] = pd.to_numeric(w_gdp['Year'])",
+                    "import modin.pandas as mpd",
+                    "w_gdp = mpd.DataFrame(w_gdp)"
+                ]
+            }
+        },
+        {
+            "method": "join",
+            "input": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])"
+                ]
+            },
+            "input_datatable": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "import datatable as dt",
+                    "w_pop = dt.Frame(w_pop)"
+                ]
+            },
+            "input_pyspark_pandas": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pyspark.pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop = w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])"
+                ]
+            },
+            "input_spark": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "from pyspark.sql import DataFrame, SparkSession",
+                    "spark = SparkSession.builder.getOrCreate()",
+                    "w_pop = spark.createDataFrame(w_pop)"
+                ]
+            },
+            "input_polars": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "import polars as pl",
+                    "w_pop = pl.from_pandas(w_pop).lazy()"
+                ]
+            },
+            "input_rapids": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import cudf",
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "w_pop = cudf.from_pandas(w_pop)"
+                ]
+            },
+            "input_vaex": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "import vaex",
+                    "w_pop = vaex.from_pandas(w_pop)"
+                ]
+            },
+            "input_dask": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "import dask.dataframe as dd",
+                    "w_pop = dd.from_pandas(w_pop, npartitions=1)"
+                ]
+            },
+            "input_modin_dask": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "import modin.pandas as mpd",
+                    "w_pop = mpd.DataFrame(w_pop)"
+                ]
+            },
+            "input_modin_ray": {
+                "other": "w_pop",
+                "left_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "right_on": [
+                    "Country Code",
+                    "Year"
+                ],
+                "how": "left",
+                "req_compile": [
+                    "other"
+                ],
+                "extra_commands": [
+                    "import pandas as pd",
+                    "w_pop = pd.read_csv('datasets/athlete/world_pop.csv')",
+                    "w_pop.drop(['Indicator Name', 'Indicator Code'], axis = 1, inplace = True)",
+                    "w_pop = pd.melt(w_pop, id_vars = ['Country', 'Country Code'], var_name = 'Year', value_name = 'Population')",
+                    "w_pop['Year'] = pd.to_numeric(w_pop['Year'])",
+                    "import modin.pandas as mpd",
+                    "w_pop = mpd.DataFrame(w_pop)"
+                ]
+            }
+        },
+        {
+            "method": "calc_column",
+            "input": {
+                "col_name": "Medal_Won",
+                "columns": [
+                    "Medal"
+                ],
+                "f": "lambda x: 0 if x[0] == 'DNW' else 1"
+            },
+            "input_vaex": {
+                "col_name": "Medal_Won",
+                "columns": [
+                    "Medal"
+                ],
+                "f": "lambda x: 0 if x == 'DNW' else 1"
+            },
+            "input_polars": {
+                "col_name": "Medal_Won",
+                "columns": [
+                    "Medal"
+                ],
+                "f": "lambda x: 0 if x == 'DNW' else 1"
+            },
+            "input_spark": {
+                "col_name": "Medal_Won",
+                "columns": [
+                    "Medal"
+                ],
+                "f": "lambda x: 0 if x == 'DNW' else 1"
+            }
+        },
+        {
+            "method": "pivot",
+            "input": {
+                "index": [
+                    "Team",
+                    "Year",
+                    "Event"
+                ],
+                "columns": [
+                    "Medal"
+                ],
+                "values": [
+                    "Medal_Won"
+                ],
+                "aggfunc": "sum"
+            },
+            "input_datatable": {
+                "index": [
+                    "Team",
+                    "Year",
+                    "Event"
+                ],
+                "columns": [
+                    "Medal"
+                ],
+                "values": [
+                    "Medal_Won"
+                ],
+                "aggfunc": "dt.sum",
+                "req_compile": [
+                    "aggfunc"
+                ],
+                "extra_commands": [
+                    "import datatable as dt"
+                ]
+            },
+            "input_dask": {
+                "index": [
+                    "Team",
+                    "Year",
+                    "Event"
+                ],
+                "columns": "Medal",
+                "values": [
+                    "Medal_Won"
+                ],
+                "aggfunc": "sum"
+            },
+            "input_vaex": {
+                "index": [
+                    "Team",
+                    "Year",
+                    "Event"
+                ],
+                "columns": "Medal",
+                "values": [
+                    "Medal_Won"
+                ],
+                "aggfunc": "vaex.agg.sum",
+                "req_compile": [
+                    "aggfunc"
+                ],
+                "extra_commands": [
+                    "import vaex"
+                ]
+            }
+        },
+        {
+            "method": "groupby",
+            "input": {
+                "columns": [
+                    "Team",
+                    "Name",
+                    "Sport"
+                ],
+                "f": {
+                    "Medal_Won": "sum"
+                }
+            },
+            "input_datatable": {
+                "columns": [
+                    "Team",
+                    "Name",
+                    "Sport"
+                ],
+                "f": "dt.sum(dt.f['Medal_Won'])"
+            }
+        },
+        {
+            "method": "groupby",
+            "input": {
+                "columns": [
+                    "Team",
+                    "Name",
+                    "Sport"
+                ],
+                "f": {
+                    "NOC": "count"
+                }
+            },
+            "input_datatable": {
+                "columns": [
+                    "Team",
+                    "Name",
+                    "Sport"
+                ],
+                "f": "dt.count(dt.f['NOC'])"
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ],
+    "data_cleaning": [
+        {
+            "method": "drop_duplicates",
+            "input": {}
+        },
+        {
+            "method": "fill_nan",
+            "input": {
+                "columns": [
+                    "Medal"
+                ],
+                "value": "DNW"
+            }
+        },
+        {
+            "method": "replace",
+            "input": {
+                "columns": [
+                    "City"
+                ],
+                "to_replace": "Athina",
+                "value": "Athens",
+                "regex": false
+            }
+        },
+        {
+            "method": "replace",
+            "input": {
+                "columns": [
+                    "City"
+                ],
+                "to_replace": "Moskva",
+                "value": "Moscow",
+                "regex": false
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ],
+    "output": [
+        {
+            "method": "to_csv",
+            "input": {
+                "sep": ","
+            },
+            "input_datatable":{},
+            "input_vaex": {}
+        }
+    ]
+}

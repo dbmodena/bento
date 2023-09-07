@@ -3,7 +3,7 @@ import os
 import json
 import resource
 import tracemalloc
-import importlib
+import subprocess
 import time
 import csv
 import colors
@@ -136,6 +136,10 @@ def get_err_logger():
     """
     Get the error log file
     """
+    # check if the results folder exists
+    if not os.path.exists("results"):
+        os.makedirs("results")
+    
     out_path = os.path.join("results", "errors.log")
     return open(out_path, "at")
 
@@ -240,3 +244,60 @@ def execute_methods(methods: dict, ds: Dataset, algo: AbstractAlgorithm, step = 
     #print("DONE", algo.name)
     algo.done()
     err.close()
+    
+def build(library, args):
+    """
+    Install a docker container
+    """
+    print(f'Building {library}...')
+    if args is not None and len(args) != 0:
+        q = " ".join(["--build-arg " + x.replace(" ", "\\ ") for x in args])
+    else:
+        q = ""
+
+    try:
+        subprocess.check_call(
+            'docker build %s --rm -t df-benchmarks-%s -f'
+            ' install/Dockerfile.%s .' % (q, library, library), shell=True)
+        return {library: 'success'}
+    except subprocess.CalledProcessError:
+        return {library: 'fail'}
+
+def install(algorithm, build_arg):
+    """
+    Install a docker container
+    """
+    if subprocess.run(["docker", "image", "inspect", "df-benchmarks"], stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode != 0:
+        print('Downloading ubuntu container...')
+        subprocess.check_call('docker pull ubuntu:18.04', shell=True)
+        print('Building base image...')
+        subprocess.check_call('docker build --rm -t df-benchmarks -f install/Dockerfile .', shell=True)
+    else: 
+        print('Base image already builded')
+
+    if algorithm:
+        tags = [algorithm]
+    else:
+        tags = [fn.split('.')[-1] for fn in os.listdir('install') if fn.startswith('Dockerfile.')]
+
+    # check docker images that starts with df-benchmarks
+    # get list
+    images = [image.split(' ')[0] for image in os.popen("docker images | grep df-benchmarks").read().split('\n') if image != '']
+
+    dockerfiles = [f.split('.')[1] for f in os.listdir('install') if f.startswith('Dockerfile.')]
+    if algorithm not in dockerfiles:
+        print('Image name not found in dockerfiles')
+        # stop execution
+        return 1
+
+    if f'df-benchmarks-{algorithm}' in images:
+        print('Algorithm image already builded')
+        
+    else:
+        try: 
+            install_status = [build(tag, build_arg) for tag in tags]
+        except Exception as e:
+            print(e)
+            return 1
+        print('\n\nInstall Status:\n' + '\n'.join(str(algo) for algo in install_status))
+    return 0

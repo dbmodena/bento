@@ -1,6 +1,11 @@
-datasets/
 results/
+tests/
 pipeline_output/
+install/Dockerfile.koalas
+install/Dockerfile.modin_unidist
+install/Dockerfile.modin_hdk
+install/Dockerfile.polars_big
+test_runner.sh
 *.png
 *.pyc
 *.lock
@@ -9,7 +14,6 @@ pipeline_output/
 **/__pycache__
 **/.ipynb_checkpoints
 **/dask-worker-space
-*.txt
 *.log
 *.csv
 *.tar.gz

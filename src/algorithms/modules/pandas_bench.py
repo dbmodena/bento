@@ -405,9 +405,6 @@ class PandasBench(AbstractAlgorithm):
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
         (see pivot_table in pandas documentation)
         """
-        print(pd.pivot_table(
-            self.df_, index=index, values=values, columns=columns, aggfunc=aggfunc
-        ).reset_index())
         return  pd.pivot_table(
             self.df_, index=index, values=values, columns=columns, aggfunc=aggfunc
         ).reset_index()
@@ -632,10 +629,15 @@ class PandasBench(AbstractAlgorithm):
                 if self.df_[cols[i]].equals(self.df_[cols[j]])]
 
     @timing
-    def to_csv(self, path=f"./pipeline_output/{name}_loan_output.csv", **kwargs):
+    def to_csv(self, path="./pipeline_output/pandas_output.csv", **kwargs):
         """
         Export the dataframe in a csv file.
         """
+        # check if the results folder exists
+        import os
+        if not os.path.exists("pipeline_output"):
+            os.makedirs("pipeline_output")
+        
         self.df_.to_csv(path, **kwargs)
 
     @timing
@@ -661,7 +663,6 @@ class PandasBench(AbstractAlgorithm):
     def force_execution(self):
         pass
     
-    @timing
     def done(self):
         pass
         

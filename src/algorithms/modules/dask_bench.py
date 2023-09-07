@@ -1,25 +1,25 @@
+import re
 from codecs import ignore_errors
 from concurrent.futures import process
 from pydoc import describe
-import re
 from typing import Union
 
-from polars import col
-from haversine import haversine
-
-from dask import config
-# config.set(scheduler='processes', num_workers=24)
-from dask import optimize
 import dask.dataframe as dd
-from numpy import dtype
-import pandas as pd
-import numpy as np
-from pyparsing import srange
-from src.datasets.dataset import Dataset
-from src.algorithms.utils import timing
 import h5py
-from src.algorithms.algorithm import AbstractAlgorithm
+import numpy as np
+import pandas as pd
+# config.set(scheduler='processes', num_workers=24)
+from dask import config, optimize
 from dask.distributed import Client, LocalCluster
+from haversine import haversine
+from numpy import dtype
+from polars import col
+from pyparsing import srange
+
+from src.algorithms.algorithm import AbstractAlgorithm
+from src.algorithms.utils import timing
+from src.datasets.dataset import Dataset
+
 
 class DaskBench(AbstractAlgorithm):
     df_ = None
@@ -30,6 +30,7 @@ class DaskBench(AbstractAlgorithm):
     
     def __init__(self, mem: str = None, cpu: int = None, pipeline: bool = False):
         import warnings
+
         import dask
 
         # Ignore all warnings
