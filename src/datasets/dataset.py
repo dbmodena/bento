@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 class DatasetAttribute(BaseModel):
     path:str 
-    test:str
-    pipe:Optional[str]
+    test:Optional[str]
+    pipe:str
     type:str
     
 
@@ -27,12 +27,9 @@ class Dataset(BaseModel):
             self.dataset_attribute = DatasetAttribute(**dictObj[name])
         return self
         
-    def add_dataset(self, file:str="src/datasets/data/datasets.json"):
-        dictObj = {}
-        if os.path.isfile(file):
-            with open(file) as fp:
-                dictObj = json.load(fp)
-        dictObj[self.name]= self.dataset_attribute.dict()
-        with open(file, mode='w') as f:
-            f.write(json.dumps(dictObj, indent=2))
-        print('Successfully written to the JSON file')
+    def add_dataset(self):
+        with open("src/datasets/data/datasets.json") as fp:
+            dictObj = json.load(fp)
+            dictObj[self.name] = self.dataset_attribute.dict()
+        with open("src/datasets/data/datasets.json", "w") as fp:
+            json.dump(dictObj, fp)

@@ -8,44 +8,47 @@ The aim of this benchmark is to compare several frameworks who manage DataFrames
 
 \***Note**: you will need Docker installed on your machine. If you want to run the algorithms locally, avoid this step.
 
-## Run an algorithm
-The command `python run_algorithm.py --algorithm <algorithm_name> --dataset <dataset_name>` will run an algorithm on the specified dataset.
-By default an algorithm running inside its Docker container, if you want to run it locally add the parameter `--locally`.
+## Run an Algorithm
+
+The command `python run_algorithm.py --algorithm <algorithm_name> --dataset <dataset_name>` will run an algorithm on the specified dataset. By default, an algorithm runs inside its Docker container. If you want to run it locally, add the parameter `--locally`.
 
 The results of a run are stored in `results/<dataset_name>/<algorithm_name>.csv`.
 
-*run_algorithm.py* takes as input the following parameters:
-* --algorithm <algorithm_name>, mandatory, the name of the algorithm to run.
-* --dataset <dataset_name>, mandatory, the dataset on which run the algorithm.
-* --locally, optional, if set the algorithm will run locally, otherwise it will run inside its Docker container.
-* --cpu_limit <cpu_number>, optional, maximum number of CPUs that the Docker container can use.
-* --mem_limit <memory_limit>, optional, maximum memory that the Docker container can use.
+`run_algorithm.py` takes as input the following parameters:
 
+- `--algorithm <algorithm_name>`, mandatory, the name of the algorithm to run.
+- `--algorithm_params`, optional, algorithm configuration parameters.
+- `--dataset <dataset_name>`, mandatory, the dataset on which to run the algorithm.
+- `--pipeline`, optional, flag for executing in pipeline mode.
+- `--pipeline-step`, optional, flag for executing in pipeline divided by step.
+- `--locally`, optional, runs the algorithm locally instead of in a Docker container.
+- `--requirements`, optional, flag to install requirements.
+- `--mem-limit`, optional, memory limit for the Docker container (default maximum available memory).
+- `--cpu-limit <cpu_number>`, optional, maximum number of CPUs that the Docker container can use (default is 1).
 
 ## Add a new dataset
 1. Create a new folder named as the dataset name inside the `dataset` folder;
 2. Place the new dataset file inside your folder;
-3. Copy the file `dataset/tests_template.json` inside your folder renaming it as `<your_dataset_name>_template.json` and edit it;
-4. Edit the file `dataset/datasets.json` by adding the new dataset.
+3. Create the file `dataset/<your_dataset_name>_template.json` and edit it;
+4. The command `python add_dataset.py --dataset <dataset_name> --dataset_params <dataset_params>` will create the dataset entry in `src/data/datasets.json`.
+
+`add_dataset.py` takes as input the following parameters:
+- `--dataset <dataset_name>`, mandatory, the name of the dataset to add.
+- `--dataset_params`, mandatory, dataset configuration parameters. The parameters must be provided as a json string, for example `--dataset_params '{"path": "dataset/<dataset_name>/<dataset_name>.csv", "pipe": "dataset/<dataset_name>/<dataset_name>_template.json", "type": "csv"}'`.
+
 
 ## Add a new algorithm
 1. Create a docker file for your algorithm named `Dockerfile.your_algo` inside the `install` folder. It must contain all the instructions needed to install the required libraries (see as example `Dockerfile.pandas`);
-2. Create a python class named `your_algo.py` inside the folder `df_benchmark/algorithms`. The class must extend and implement all the methods of the base class contained in `df_benchmark/algorithms/base.py`;
-3. Add your algorithm definition in `df_benchmark/algorithms/algorithms.json` by using the following pattern
+2. Create a python class named `your_algo.py` inside the folder `src/algorithms/modules`. The class must extend and implement all the methods of the base class contained in `src/algorithms/algorithm.py`;
+3. Add your algorithm definition in the build_algorithm function in the factory class `src/algorithms/algorithms_factory.py`.
+```python
+if algorithm_name == "dask":
+   from src.algorithms.modules.dask_bench import DaskBench
+   return DaskBench(mem, cpu, pipeline)
 ```
-{
-   "name": "algorithm_name",
-   "module": "df_benchmark.algorithms.algorithm_name",
-   "constructor": "className",
-   "constructor_args": []
-}
-```
-* name: the name of your algorithm.
-* module: the name of the module which contains your class
-* constructor: name name of your class
-* constructor_args: arguments that have to be passed to the constructor when the class is instantiated
 
 ## Write a benchmark file
+
 You can take as example the file `dataset/tests_template.json`.
 For each method you want to execute you have to add a new object as the following one to the list:
 ```
@@ -82,7 +85,107 @@ Every value of the parameters inserted in the `req_compile` array is parsed thro
 
 For example, the value `polars.Float32` is replaced with the object `polars.datatypes.Float32` of the Polars library.
 
+Here's an example including various methods and their inputs for different algorithms for pipeline execution:
+```
+{
+    "Input": [
+        {
+            "method": "load_dataset",
+            "input": {
+                "sep": ","
+            },
+            "input_dask": {
+                "sep": ",",
+                "assume_missing": "True",
+                "dtype": "object"
+            },
+            "input_koalas": {
+                "sep": ",",
+                "assume_missing": "True"
+            },
+            "input_vaex1": {
+                "sep": ",",
+                "low_memory": "False"
+            },
+            "input_vaex": {
+                "lazy": true
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ],
+    "EDA": [
+        {
+            "method": "get_columns",
+            "input": {}
+        },
+        {
+            "method": "locate_null_values",
+            "input": {
+                "column": "all"
+            }
+        },
+        {
+            "method": "sort",
+            "input": {
+                "columns": [
+                    "Year"
+                ]
+            },
+            "input_dask": {
+                "columns": [
+                    "Year"
+                ],
+                "cast": {
+                    "Year": "int64"
+                }
+            }
+        },
+        {
+            "method": "query",
+            "input": {
+                "query": "Year >= 1960 & Season == 'Summer'"
+            },
+            "input_rapids": {
+                "query": "(Year >= 1960 and Season == 'Summer')"
+            },
+            "input_datatable": {
+                "query": "((dt.f.Year >= 1960) & (dt.f.Season == 'Summer'))"
+            },
+            "input_polars": {
+                "query": "(pl.col('Year') >= 1960) & (pl.col('Season') == 'Summer')",
+                "req_compile": [
+                    "query"
+                ],
+                "extra_commands": [
+                    "import polars as pl"
+                ]
+            },
+            "input_spark": {
+                "query": "(fn.col('Year') >= 1960) & (fn.col('Season') == 'Summer')",
+                "req_compile": [
+                    "query"
+                ],
+                "extra_commands": [
+                    "import pyspark.sql.functions as fn"
+                ]
+            },
+            "input_pyspark_pandas": {
+                "query": "('Year' >= 1960) and ('Season' == 'Summer')"
+            },            
+            "input_vaex":{
+                "query": "Year >= 1960 and Season == 'Summer'"
+            }
+        },
+        {
+            "method": "force_execution",
+            "input": {}
+        }
+    ]
+}
+```
+
 ## Plot the results
 The script `make_charts.py` can be used to plot the results obtained on a dataset.
-The usage is `python make_charts.py --dataset <dataset_name> --var <variable to plot>`, the variable to plot can be `mem` to plot the memory usage or `time` to plot the time.
-The generated figures will be placed in the folder `plots/<dataset name>`.
