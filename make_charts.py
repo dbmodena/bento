@@ -1,4 +1,3 @@
-from df_benchmark.run import load_datasets, load_algorithms
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,6 +5,214 @@ import numpy as np
 import glob
 import os
 import math
+import itertools
+
+
+step_dict = {
+    "i/o": ["read_csv", "read_json", "read_xml", "read_excel", "read_parquet", "read_sql", "load_from_pandas", "to_csv", "load_dataset", "get_pandas_df", "Input", "output"],
+    "eda": ["locate_null_values", "locate_outliers", "search_by_pattern", "sort", "get_columns", "get_columns_types", "get_stats", "is_unique", "check_allowed_char", "sample_rows", "query", "find_mismatched_dtypes", "EDA"],
+    "data_transformation": ["data_transformation", "cast_columns_types", "delete_columns", "rename_columns", "split", "merge_columns", "pivot", "unpivot", "calc_column", "duplicate_columns", "set_index", "join", "append", "min_max_scaler", "one_hot_encoding", "categorical_encoding", "groupby"],
+    "data_cleaning": ["data_cleaning", "change_date_time_format", "delete_empty_rows", "set_header_case", "set_content_case", "change_num_format", "round", "drop_duplicates", "get_duplicate_columns", "drop_by_pattern", "fill_nan", "replace", "edit", "set_value", "strip", "remove_diacritics"],
+}
+
+
+
+
+def reduce_dataset_name(df):
+    print(df.dataset.unique())
+    datasets_letter = [d[:4] for d in df.dataset.unique()]
+    df['dataset'] = df['dataset'].map(dict(zip(df.dataset.unique(), datasets_letter)))
+    return df
+
+def concatenate_csv(path, niter=3):
+    """given a path, it returns a dataframe with the last niter csv files
+
+    Args:
+        path (str): path of the folder
+        niter (int, optional): number of csv files to concatenate. Defaults to 3.
+
+    Returns:
+        DataFrame: dataframe with the last niter csv files
+    """
+    all_files = os.listdir(path)
+    csv_files = [file for file in all_files if file.endswith(".csv")]
+    csv_files = sorted(
+        csv_files, key=lambda x: os.path.getmtime(os.path.join(path, x)), reverse=True
+    )[:3]
+    dfs = [pd.read_csv(os.path.join(path, file)) for file in csv_files]
+    return pd.concat(dfs)
+
+
+def get_dataframe_avg_time(framework, datasets, pipe, step, conf_cpu, conf_mem):
+    """given a dataframe, it returns a dataframe with the average time for each algorithm method
+
+    Args:
+        df (DataFrame): dataframe with the time for each algorithm
+        framework (str): framework name
+        dataset (str): dataset name
+        pipe (bool): if the dataframe is for the pipeline
+        step (bool): if the dataframe is for the pipeline step
+
+    Returns:
+        DataFrame: dataframe with the average time for each algorithm
+    """
+
+    avg_time_cpu = pd.DataFrame(
+        columns=[
+            "dataset",
+            "size",
+            "framework",
+            "method",
+            "cpu",
+            "mem",
+            "avg_time",
+            "avg_memory",
+        ]
+    )
+
+    for f, (d, size) in itertools.product(framework, datasets.items()):
+        for cpu, mem in itertools.product(conf_cpu, conf_mem):
+            d_name = d
+            if step:
+                d_name = f"{d}_pipe_step"
+            elif pipe:
+                d_name = f"{d}_pipe"
+
+            path = f"./results/{d_name}/{f}_mem{mem}g_cpu{cpu}/"
+
+            # try to concatenate the last niter csv files if there is an error, it means that the algorithm is out of memory
+            df = pd.DataFrame()  # commodity dataframe for concatenation of csv files
+            try:
+                df = concatenate_csv(path, niter=3)
+            except Exception as e:
+                print(f"Out of memory {f} {d}")
+                continue
+
+            # for each method, it calculates the average time and memory
+            for m in df["method"].unique():
+                # insert the row in the dataframe
+                avg_time_cpu.loc[len(avg_time_cpu)] = [
+                    d,
+                    size,
+                    f,
+                    m,
+                    cpu,
+                    mem,
+                    df[df["method"] == m]["time"].mean(),
+                    df[df["method"] == m]["ram"].mean(),
+                ]
+
+    return avg_time_cpu
+
+
+# open json file create a dataframe with indicates the key and the number of elements for each key
+import json
+
+
+def count_methods(df, path="./", datasets=["athlete", "loan", "state_patrol"]):
+    count = {}
+    for d in datasets:
+        file = json.load(open(f"{path}{d}_pipe.json"))
+        # for every key count the number of "method"
+        count[d] = {}
+        for k, e in file.items():
+            # print unique methods
+            for c in e:
+                if c["method"] not in count:
+                    if c["method"] == "force_execution":
+                        continue
+                    if k in ["Input", "output"]:
+                        k = "i/o"
+                    if k == "EDA":
+                        k = "eda"
+                    count[d][k, c["method"]] = 1
+    # count the number of methods for each key
+    count_keys = {}
+    for c in count:
+        count_keys[c] = {}
+        for k in count[c].keys():
+            if k[0] not in count_keys[c]:
+                count_keys[c][k[0]] = 1
+            else:
+                count_keys[c][k[0]] += 1
+    json.dump(count_keys, open("count_keys.json", "w"))
+    for d in df["dataset"].unique():
+        for k in df[df["dataset"] == d]["method"].unique():
+            df.loc[(df["dataset"] == d) & (df["method"] == k), "count"] = count_keys[d][
+                k
+            ]
+    return df
+
+
+def normalize_time_memory(df):
+    df = count_methods(df)
+    # normlize avg_time and avg_memory
+
+    # calculate the tot method for every dataset
+    values = df.groupby(["dataset", "framework"])["count"].sum().reset_index()
+    # map the value of the tot method for every dataset in the dataframe
+    df["totm"] = df.apply(
+        lambda x: values[
+            (values["dataset"] == x["dataset"])
+            & (values["framework"] == x["framework"])
+        ]["count"].values[0],
+        axis=1,
+    )
+
+    df["norm_avg_time"] = df["avg_time"] / df["totm"]
+
+    return df
+
+
+def framework_names_remapping(df):
+    names_dict = {
+        "pandas": "pandas",
+        "pandas20": "pandas2.0",
+        "rapids": "cuDF",
+        "spark": "pyspark-sql",
+        "pyspark_pandas": "pyspark-pandas",
+        "vaex": "vaex",
+        "datatable": "datatable",
+        "modin_dask": "modin-dask",
+        "modin_ray": "modin-ray",
+        "polars": "polars",
+    }
+    df["framework"] = df["framework"].map(names_dict)
+    return df
+
+def short_framework_names_remapping(df):
+    names_dict = {
+        "pandas": "Pandas",
+        "pandas20": "Pandas2",
+        "rapids": "cuDF",
+        "spark": "SparkSQL",
+        "pyspark_pandas": "SparkPD",
+        "vaex": "Vaex",
+        "datatable": "Datatable",
+        "modin_dask": "ModinD",
+        "modin_ray": "ModinR",
+        "polars": "aPolars",
+    }
+    df["framework"] = df["framework"].map(names_dict)
+    return df
+
+def map_step_key(method):
+    return next(
+        (key for key, values in step_dict.items() if method in values), None
+    )
+    
+    
+
+
+
+
+
+
+
+
+
+
+
 
 def load_df(framework, dataset, cpu, memory):
     folder = f"{dataset}_mem_{memory}_cpu_{cpu}"

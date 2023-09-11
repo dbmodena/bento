@@ -6,6 +6,7 @@ install/Dockerfile.modin_unidist
 install/Dockerfile.modin_hdk
 install/Dockerfile.polars_big
 test_runner.sh
+make_charts_old.py
 *.png
 *.pyc
 *.lock
