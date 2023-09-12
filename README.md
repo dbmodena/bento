@@ -1,7 +1,7 @@
-# Dataframes benchmark
-The aim of this benchmark is to compare several frameworks who manage DataFrames on common operations of data preparation.
+# Dataframes Comparison Tool
+The aim of this tool is to compare several frameworks who manage DataFrames on common operations of data preparation.
 
-## Install the benchmark
+## Install the tool
 1. Clone this github repository on your machine;
 2. Run `pip install -r requirements.txt`;
 3. Run `python install.py` to build all the algorithms inside Docker containers\*.
@@ -47,7 +47,7 @@ if algorithm_name == "dask":
    return DaskBench(mem, cpu, pipeline)
 ```
 
-## Write a benchmark file
+## Write a test file
 
 You can take as example the file `dataset/tests_template.json`.
 For each method you want to execute you have to add a new object as the following one to the list:
