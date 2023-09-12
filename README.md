@@ -189,3 +189,20 @@ Here's an example including various methods and their inputs for different algor
 
 ## Plot the results
 The script `make_charts.py` can be used to plot the results obtained on a dataset.
+
+1. Execute all the algorithms on each dataset you want to plot;
+2. Run `make_charts.py` adding the argoument for the specific plot;
+
+The command `python make_charts.py --plot <plot_name> --dataset <dataset_name> --framework <framework_name> --memory <memory> --cpu <cpu>` will plot the results of the specified algorithm on the specified dataset.
+
+`make_charts.py` takes as input the following parameters:
+- dataset, mandatory, the list of datasets to plot;
+- framework, mandatory, the list of frameworks to plot;
+- memory, mandatory, the list of memory limits to plot;
+- cpu, mandatory, the list of cpu limits to plot;
+- core_results, optional, flag to plot the core results;
+- io_plot, optional, flag to plot the io plot;
+- step_plot, optional, flag to plot the step plot;
+- eager_lazy, optional, flag to plot the eager lazy plot;
+- scalability, optional, flag to plot the scalability plot.
+
