@@ -191,7 +191,7 @@ Here's an example including various methods and their inputs for different algor
 The script `make_charts.py` can be used to plot the results obtained on a dataset.
 
 1. Execute all the algorithms on each dataset you want to plot;
-2. Run `make_charts.py` adding the argoument for the specific plot;
+2. Run `make_charts.py` adding the argument for the specific plot;
 
 The command `python make_charts.py --plot <plot_name> --dataset <dataset_name> --framework <framework_name> --memory <memory> --cpu <cpu>` will plot the results of the specified algorithm on the specified dataset.
 
