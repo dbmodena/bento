@@ -94,7 +94,10 @@ class PandasBench(AbstractAlgorithm):
         """
         Read a csv file
         """
-        self.df_ = pd.read_csv(path, **kwargs)
+        if self.name == "pandas20":
+            self.df_ = pd.read_csv(path, **kwargs, engine='pyarrow')
+        else:
+            self.df_ = pd.read_csv(path, **kwargs)
         return self.df_
     
     def read_hdf5(self, path, **kwargs):
@@ -128,7 +131,10 @@ class PandasBench(AbstractAlgorithm):
         """
         Read a parquet file
         """
-        self.df_ = pd.read_parquet(path, **kwargs)
+        if self.name == "pandas20":
+            self.df_ = pd.read_parquet(path, **kwargs, engine='pyarrow')
+        else:
+            self.df_ = pd.read_parquet(path, **kwargs)
         return self.df_
 
     @timing
