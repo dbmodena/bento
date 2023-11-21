@@ -1,4 +1,4 @@
-# Dataframes Comparison Tool
+# 🍱 Dataframes Evaluation Tool
 The aim of this tool is to compare several frameworks who manage DataFrames on common operations of data preparation.
 
 ## Install the tool
