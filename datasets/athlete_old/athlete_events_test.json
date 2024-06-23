@@ -1,0 +1,28 @@
+[
+    {
+		"method": "load_dataset",
+		"input": {"sep": ","}, 
+		"input_koalas": {"sep": ",", "assume_missing":"True", "partition_col":"ID"},
+		"input_dask": {"sep": ",", "assume_missing":"True","low_memory":"False"}
+	},
+	{
+		"method": "fill_nan",
+		"input": {"value": "0"}
+	},
+	{
+		"method": "cast_columns_types",
+		"input": {"dtypes":{"Age": "int32"}},
+		"input_polars": {"dtypes": {"Age": "polars.Int32"}, "req_compile": ["dtypes"], "extra_commands": ["import polars"]},
+		"input_spark": {"dtypes":{"Age": "int"}}
+	},
+
+	{
+		"method": "sort",
+		"input": {"columns": ["Name", "Height"], "ascending": false}
+	},
+	{
+		"method": "edit",
+		"input": {"columns": ["Age"], "func": "lambda x: x**2"},
+		"input_koalas": {"columns": ["Age"], "func": "lambda x: x**2", "rolling": 3}
+	}
+]

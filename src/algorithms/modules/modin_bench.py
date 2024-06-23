@@ -1,12 +1,9 @@
 import re
 from typing import Union
 
-import os
-os.environ["RAY_SCHEDULER_EVENTS"] = "0"
 # os.environ["MODIN_ENGINE"] = "dask"  # Modin will use Ray
 # os.environ["MODIN_ENGINE"] = "ray"  # Modin will use Ray
 import modin.pandas as pd
-pd.DEFAULT_NPARTITIONS = 24 
 from modin.pandas import DataFrame, Series
 from src.algorithms.utils import timing
 from src.datasets.dataset import Dataset
@@ -16,56 +13,58 @@ from haversine import haversine
 class ModinBench(AbstractAlgorithm):
     df_: Union[pd.DataFrame, Series]
     backup_: Union[pd.DataFrame, Series]
-    ds_ : Dataset = None
+    ds_: Dataset = None
     name = "modin"
-    
+
     def __init__(self, mem: str = None, cpu: int = None, type="dask", pipeline=False):
         self.mem_ = mem
         self.cpu_ = cpu
         self.pipeline = pipeline
         self.name = f"{self.name}_{type}"
         self.type = type
-                
+
         import modin.config as cfg
-        import math 
+        import math
+
         if self.type == "hdk":
-            cfg.StorageFormat.put('hdk')
+            cfg.StorageFormat.put("hdk")
             cfg.IsExperimental.put(True)
             import modin.experimental.pandas as pd
-        
-        else:
-            cfg.Engine.put(self.type)
-            #cfg.NPartitions.put(int(math.sqrt(cpu)))
-            print(f"NPartitions: {cfg.NPartitions.get()}")
-            if self.type == "unidist":
-                import unidist.config as unidist_cfg
-                cfg.StorageFormat.put('pandas')
-                unidist_cfg.Backend.put('mpi')  
 
+        else:
             if self.type == "ray":
                 import ray
-                ray.init(num_cpus=cpu, runtime_env={'env_vars': {'__MODIN_AUTOIMPORT_PANDAS__': '1'}})
-                os.environ['RAY_verbose_spill_logs'] = '0'
+                ray.init(object_store_memory=(self.mem_/3)*1024*1024*1024, num_cpus=self.cpu_, ignore_reinit_error=True)
+                import os
+                os.environ["MODIN_ENGINE"] = "ray"
+                os.environ["RAY_SCHEDULER_EVENTS"] = "0"
+                os.environ["RAY_DEDUP_LOGS"] = "0"
+                os.environ["RAY_verbose_spill_logs"] = "0"
 
-            
             if self.type == "dask":
+                import os
+
+                os.environ["MODIN_ENGINE"] = "dask"
+                
+                import distributed
                 from distributed import Client, LocalCluster
+
                 # start a local Dask client
-                self.client = Client(processes=True, memory_limit=None)
-                # wait the cluster is ready
-                self.client.wait_for_workers(1)
+                print( distributed.client._get_global_client())
+                mem_per_worker = self.mem_ / self.cpu_*4
+                self.client = distributed.client._get_global_client() or Client(memory_limit=f'{self.mem_//4}GB')
+                
                 # silence all ERROR logs
                 import logging
+
                 logging.getLogger("distributed.utils_perf").setLevel(logging.ERROR)
 
-        
     def backup(self):
         """
         Creates a backup copy of the current dataframe
         """
         self.backup_ = self.df_.copy(deep=True)
-        # self.backup_ = self.get_pandas_df()
-
+        
     def restore(self):
         """
         Replace the internal dataframe with the backup
@@ -92,20 +91,20 @@ class ModinBench(AbstractAlgorithm):
         """
         self.ds_ = ds
         path = ds.dataset_attribute.path
-        format = ds.dataset_attribute.type
-        
-        if format == "csv":
+        fmt = ds.dataset_attribute.type
+
+        if fmt == "csv":
             self.df_ = self.read_csv(path, **kwargs)
-        elif format == "excel":
+        elif fmt == "excel":
             self.df_ = self.read_excel(path, **kwargs)
-        elif format == "json":
+        elif fmt == "json":
             self.df_ = self.read_json(path, **kwargs)
-        elif format == "parquet":
+        elif fmt == "parquet":
             self.df_ = self.read_parquet(path, **kwargs)
-        elif format == "sql":
+        elif fmt == "sql":
             self.df_ = self.read_sql(path, conn, **kwargs)
 
-        elif format == "xml":
+        elif fmt == "xml":
             self.df_ = self.read_xml(path, **kwargs)
 
         return self.df_
@@ -159,6 +158,7 @@ class ModinBench(AbstractAlgorithm):
         """
         self.df_ = pd.DataFrame()
         return self.df_
+
     @timing
     def sort(self, columns, ascending=True):
         """
@@ -166,12 +166,13 @@ class ModinBench(AbstractAlgorithm):
         Columns is a list of column names
         """
         if len(columns) > 1:
-            print("Modin does not support multi-column sorting, only the first column will be used")
-            columns = columns[0] 
+            print(
+                "Modin does not support multi-column sorting, only the first column will be used"
+            )
+            columns = (columns[0],)
         self.df_ = self.df_.sort_values(by=columns, ascending=ascending)
-        #self.df_ = self.df_.sort_values(columns, ascending=ascending)
-        #return self.df_
-    
+        return self.df_
+
     @timing
     def get_columns(self):
         """
@@ -254,7 +255,6 @@ class ModinBench(AbstractAlgorithm):
         if column == "all":
             column = self.get_columns()
 
-        #return self.df_[self.df_[column].apply(lambda x: x != x)]
         return self.df_[self.df_[column].isnull()]
 
     @timing
@@ -266,8 +266,8 @@ class ModinBench(AbstractAlgorithm):
         Pattern could be a regular expression.
         """
         search = self.df_.copy()
-        test = search[column].fillna('').str.contains(re.compile(pattern))
-        
+        test = search[column].fillna("").str.contains(re.compile(pattern))
+
         return search[test]
 
     @timing
@@ -280,15 +280,19 @@ class ModinBench(AbstractAlgorithm):
         if column == "all":
             column = [c for c in self.df_.columns if self.df_[c].dtype == "float64"]
         import numpy as np
+
         # Calculate the percentile values for each column
-        percentiles = np.percentile(self.df_[column].values, [(lower_quantile*100), (upper_quantile*100)], axis=0)
+        percentiles = np.percentile(
+            self.df_[column].values,
+            [(lower_quantile * 100), (upper_quantile * 100)],
+            axis=0,
+        )
 
         # Create boolean masks for values lower and higher than the quantile values
         lower_mask = (self.df_[column] < percentiles[0]).any(axis=1)
         upper_mask = (self.df_[column] > percentiles[1]).any(axis=1)
 
         return self.df_[lower_mask | upper_mask]
-        
 
     @timing
     def get_columns_types(self):
@@ -334,9 +338,15 @@ class ModinBench(AbstractAlgorithm):
             .to_dict()
         )
 
-        return [{"col": k, "current_dtype": current_dtypes[k], "suggested_dtype": new_dtypes[k],} 
-                for k in current_dtypes.keys() 
-                if new_dtypes[k] != current_dtypes[k]]
+        return [
+            {
+                "col": k,
+                "current_dtype": current_dtypes[k],
+                "suggested_dtype": new_dtypes[k],
+            }
+            for k in current_dtypes.keys()
+            if new_dtypes[k] != current_dtypes[k]
+        ]
 
     @timing
     def check_allowed_char(self, column, pattern):
@@ -374,7 +384,9 @@ class ModinBench(AbstractAlgorithm):
         column datatype must be datetime
         An example of format is '%m/%d/%Y'
         """
-        self.df_[column] = pd.to_datetime(self.df_[column], errors='coerce')
+        self.df_[column] = pd.to_datetime(
+            self.df_[column], errors="coerce", format=format
+        )
         self.df_[column] = self.df_[column].dt.strftime(format)
         return self.df_
 
@@ -462,7 +474,7 @@ class ModinBench(AbstractAlgorithm):
         Delete the rows with null values for all provided Columns
         Columns is a list of column names
         """
-        if columns=="all":
+        if columns == "all":
             columns = self.get_columns()
         self.df_.dropna(subset=columns, axis=0, inplace=True)
         return self.df_
@@ -520,15 +532,20 @@ class ModinBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def calc_column(self, col_name, columns, f):
+    def calc_column(self, col_name, f, columns=None, apply=False):
         """
         Calculate the new column col_name by applying
         the function f to the whole dataframe
         """
         if not columns:
-            columns = self.get_columns()
-        f = eval(f)
-        self.df_[col_name] = self.df_[columns].apply(f, axis=1)
+            columns = self.df_.columns
+        if apply:
+            if type(f) == str:
+                f = eval(f)
+            self.df_[col_name] = self.df_[columns].apply(f, axis=1)
+        else:
+            if type(f) == str:
+                self.df_[col_name] = eval(f)
         return self.df_
 
     @timing
@@ -547,13 +564,54 @@ class ModinBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def groupby(self, columns, f):
+    def groupby(self, columns, f, cast=None):
         """
         Aggregate the dataframe by the provided columns
-        then applies the function f on every group
+        then applies the specified function f on every group.
+        The function f can be a string representing a pandas DataFrameGroupBy method with arguments.
         """
-        import numpy as np
-        return self.df_.groupby(columns).agg(f)
+        # Define the allowed aggregation methods and their corresponding functions
+        if type(f)==str:
+            allowed_methods = {
+                "cummin": lambda x: x.cummin(),
+                "cummax": lambda x: x.cummax(),
+                "idxmin": lambda x: x.idxmin(),
+                "idxmax": lambda x: x.idxmax(),
+                "var": lambda x: x.var(),
+                "std": lambda x: x.std(),
+                "sem": lambda x: x.sem(),
+                "quantile": lambda x: x.quantile(),
+                "mean": lambda x, **kwargs: x.mean(**kwargs),
+                "count": lambda x, **kwargs: x.count(),
+            }
+
+            # Parse the function name and arguments
+            parts = f.split("(")
+            method_name = parts[0].strip()
+            args_str = "(" + parts[1] if len(parts) > 1 else None
+
+            # Check if the specified method is allowed
+            if method_name not in allowed_methods:
+                raise ValueError(f"Unsupported method '{method_name}'")
+
+            # Get the corresponding function
+            method_func = allowed_methods[method_name]
+
+            # Perform the groupby operation
+            grouped = self.df_.groupby(columns)
+
+            # Apply the specified function with arguments if provided
+            if args_str:
+                # Evaluate the arguments to create a dictionary of keyword arguments
+                kwargs = eval("dict" + args_str)
+                result = grouped.apply(lambda x: method_func(x, **kwargs))
+            else:
+                # No arguments provided, apply the function directly
+                result = grouped.apply(method_func)
+        elif type(f)==dict:
+            result = self.df_.groupby(columns).agg(f)
+
+        return result
 
     @timing
     def categorical_encoding(self, columns):
@@ -564,11 +622,8 @@ class ModinBench(AbstractAlgorithm):
         for column in columns:
             self.df_[column] = pd.Categorical(self.df_[column])
             codes = self.df_[column].cat.categories
-            #self.df_[column] = codes
-        #     #self.df_[f"{columns}_cat"] = self.df_[column].cat.codes
-            
-        #     #self.delete_columns([column])
-        #     #self.df_[column] = codes
+            self.df_[column] = codes
+                    
         return self.df_
 
     @timing
@@ -611,7 +666,7 @@ class ModinBench(AbstractAlgorithm):
         """
         func = eval(func)
         for c in columns:
-             self.df_[c] = self.df_[c].apply(func)
+            self.df_[c] = self.df_[c].apply(func)
         return self.df_
 
     @timing
@@ -652,18 +707,20 @@ class ModinBench(AbstractAlgorithm):
         # NOTA: a differenza di pandas, considera anche il nome delle colonne nel confronto
         # e non solo i valori!
         cols = self.df_.columns.values
-        return [(cols[i], cols[j]) 
-                for i in range(len(cols)) 
-                for j in range(i + 1, len(cols)) 
-                if self.df_[cols[i]].equals(self.df_[cols[j]])]
+        return [
+            (cols[i], cols[j])
+            for i in range(len(cols))
+            for j in range(i + 1, len(cols))
+            if self.df_[cols[i]].equals(self.df_[cols[j]])
+        ]
 
     @timing
-    def to_csv(self, path=f"./pipeline_output/{name}_loan_output.csv", **kwargs):
+    def to_csv(self, path=f"./outputs/{name}_loan_output.csv", **kwargs):
         """
         Export the dataframe in a csv file.
         """
         self.df_.to_csv(path, **kwargs)
-        
+
     @timing
     def to_parquet(self, path="./pipeline_output/modin_output.parquet", **kwargs):
         """
@@ -682,15 +739,16 @@ class ModinBench(AbstractAlgorithm):
         if inplace:
             self.df_ = self.df_.query(query)
             return self.df_
-        
+
         return self.df_.query(query)
-    
-        
+
     def force_execution(self):
         pass
-    
+
     def done(self):
-        pass
-    
+       pass
+
+
+
     def set_construtor_args(self, args):
         pass

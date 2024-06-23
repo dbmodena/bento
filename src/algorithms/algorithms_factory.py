@@ -1,30 +1,14 @@
 from pydantic import BaseModel
 from typing import Any
-from pydantic_factories import ModelFactory
 from src.algorithms.algorithm import AbstractAlgorithm
 
-
-
-
-
-
-
-
-
-class AlgorithmsFactory(ModelFactory[Any]):
+class AlgorithmsFactory(BaseModel):
     @staticmethod
     def build_algorithm(algorithm_name:str, mem:str = None, cpu: int = None, conf=None, pipeline=False) -> AbstractAlgorithm:
         if conf is None:
             conf = {}
         try:
-            if algorithm_name == "dask":
-                from src.algorithms.modules.dask_bench import DaskBench
-                return DaskBench(mem, cpu, pipeline)
-            elif algorithm_name == "koalas":
-                from src.algorithms.modules.koalas_bench import KoalasBench
-                return KoalasBench(conf)
-
-            elif algorithm_name == "modin_dask":
+            if algorithm_name == "modin_dask":
                 from src.algorithms.modules.modin_bench import ModinBench
                 return ModinBench(mem, cpu, type="dask", pipeline = pipeline)
 

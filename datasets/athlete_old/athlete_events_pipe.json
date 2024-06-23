@@ -85,8 +85,8 @@
             },
             "input_pyspark_pandas": {
                 "query": "('Year' >= 1960) and ('Season' == 'Summer')"
-            },
-            "input_vaex": {
+            },            
+            "input_vaex":{
                 "query": "Year >= 1960 and Season == 'Summer'"
             }
         },
@@ -128,12 +128,8 @@
             },
             "input_pyspark_pandas": {
                 "other": "noc_region",
-                "left_on": [
-                    "NOC"
-                ],
-                "right_on": [
-                    "NOC"
-                ],
+                "left_on": ["NOC"],
+                "right_on": ["NOC"],
                 "how": "left",
                 "req_compile": [
                     "other"
@@ -288,8 +284,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Singapore' if x[1] == 'SGP' else x[0]",
-                "apply": true
+                "f": "lambda x: 'Singapore' if x[1] == 'SGP' else x[0]"
             },
             "input_vaex": {
                 "col_name": "Country",
@@ -305,8 +300,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x, y: 'Singapore' if y == 'SGP' else x",
-                "apply": true
+                "f": "lambda x, y: 'Singapore' if y == 'SGP' else x"
             },
             "input_polars": {
                 "col_name": "Country",
@@ -314,27 +308,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Singapore' if x['NOC'] == 'SGP' else x['Country']",
-                "return_dtype": "pl.Utf8",
-                "apply": true
-            },
-            "input_rapids": {
-                "col_name": "Country",
-                "columns": [
-                    "Country",
-                    "NOC"
-                ],
-                "f": "lambda x: 'Singapore' if x['NOC'] == 'SGP' else x['Country']",
-                "apply": true
-            },
-            "input_pyspark_pandas": {
-                "col_name": "Country",
-                "columns": [
-                    "Country",
-                    "NOC"
-                ],
-                "f": "lambda x: 'Singapore' if x['NOC'].to_cupy()[0][0] == 'SGP' else x['Country']",
-                "apply": true
+                "f": "lambda x: 'Singapore' if x['NOC'] == 'SGP' else x['Country']"
             }
         },
         {
@@ -345,8 +319,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Refugee Olympic Athletes' if x[1] == 'ROT' else x[0]",
-                "apply": true
+                "f": "lambda x: 'Refugee Olympic Athletes' if x[1] == 'ROT' else x[0]"
             },
             "input_vaex": {
                 "col_name": "Country",
@@ -362,8 +335,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x, y: 'Refugee Olympic Athletes' if y == 'ROT' else x",
-                "apply": true
+                "f": "lambda x, y: 'Refugee Olympic Athletes' if y == 'ROT' else x"
             },
             "input_polars": {
                 "col_name": "Country",
@@ -371,18 +343,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Refugee Olympic Athletes' if x['NOC'] == 'ROT' else x['Country']",
-                "return_dtype": "pl.Utf8",
-                "apply": true
-            },
-            "input_pyspark_pandas": {
-                "col_name": "Country",
-                "columns": [
-                    "Country",
-                    "NOC"
-                ],
-                "f": "lambda x: 'Refugee Olympic Athletes' if x['NOC'] == 'ROT' else x['Country']",
-                "apply": true
+                "f": "lambda x: 'Refugee Olympic Athletes' if x['NOC'] == 'ROT' else x['Country']"
             }
         },
         {
@@ -393,8 +354,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Unknown' if x[1] == 'UNK' else x[0]",
-                "apply": true
+                "f": "lambda x: 'Unknown' if x[1] == 'UNK' else x[0]"
             },
             "input_vaex": {
                 "col_name": "Country",
@@ -410,8 +370,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x, y: 'Unknown' if y == 'UNK' else x",
-                "apply": true
+                "f": "lambda x, y: 'Unknown' if y == 'UNK' else x"
             },
             "input_polars": {
                 "col_name": "Country",
@@ -419,18 +378,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Unknown' if x['NOC'] == 'UNK' else x['Country']",
-                "return_dtype": "pl.Utf8",
-                "apply": true
-            },
-            "input_pyspark_pandas": {
-                "col_name": "Country",
-                "columns": [
-                    "Country",
-                    "NOC"
-                ],
-                "f": "lambda x: 'Unknown' if x['NOC'] == 'UNK' else x['Country']",
-                "apply": true
+                "f": "lambda x: 'Unknown' if x['NOC'] == 'UNK' else x['Country']"
             }
         },
         {
@@ -441,8 +389,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Tuvalu' if x[1] == 'TUV' else x[0]",
-                "apply": true
+                "f": "lambda x: 'Tuvalu' if x[1] == 'TUV' else x[0]"
             },
             "input_vaex": {
                 "col_name": "Country",
@@ -458,8 +405,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x, y: 'Tuvalu' if y == 'TUV' else x",
-                "apply": true
+                "f": "lambda x, y: 'Tuvalu' if y == 'TUV' else x"
             },
             "input_polars": {
                 "col_name": "Country",
@@ -467,18 +413,7 @@
                     "Country",
                     "NOC"
                 ],
-                "f": "lambda x: 'Tuvalu' if x['NOC'] == 'TUV' else x['Country']",
-                "return_dtype": "pl.Utf8",
-                "apply": true
-            },
-            "input_pyspark_pandas": {
-                "col_name": "Country",
-                "columns": [
-                    "Country",
-                    "NOC"
-                ],
-                "f": "lambda x: 'Tuvalu' if x['NOC'] == 'TUV' else x['Country']",
-                "apply": true
+                "f": "lambda x: 'Tuvalu' if x['NOC'] == 'TUV' else x['Country']"
             }
         },
         {
@@ -564,12 +499,8 @@
             },
             "input_pyspark_pandas": {
                 "other": "w_gdp",
-                "left_on": [
-                    "Team"
-                ],
-                "right_on": [
-                    "Country Name"
-                ],
+                "left_on": ["Team"],
+                "right_on": ["Country Name"],
                 "how": "left",
                 "req_compile": [
                     "other"
@@ -1216,16 +1147,7 @@
                 "columns": [
                     "Medal"
                 ],
-                "f": "lambda x: 0 if x[0] == 'DNW' else 1",
-                "apply": true
-            },
-            "input_rapids":{
-                "col_name": "Medal_Won",
-                "columns": [
-                    "Medal"
-                ],
-                "f": "lambda x: 0 if x['Medal'] == 'DNW' else 1",
-                "apply": true
+                "f": "lambda x: 0 if x[0] == 'DNW' else 1"
             },
             "input_vaex": {
                 "col_name": "Medal_Won",
@@ -1239,25 +1161,14 @@
                 "columns": [
                     "Medal"
                 ],
-                "f": "lambda x: 0 if x == 'DNW' else 1",
-                "return_dtype": "pl.Int64",
-                "apply": true
+                "f": "lambda x: 0 if x == 'DNW' else 1"
             },
             "input_spark": {
                 "col_name": "Medal_Won",
                 "columns": [
                     "Medal"
                 ],
-                "f": "lambda x: 0 if x == 'DNW' else 1",
-                "apply": true
-            },
-            "input_pyspark_pandas": {
-                "col_name": "Medal_Won",
-                "columns": [
-                    "Medal"
-                ],
-                "f": "lambda x: 0 if x['Medal'] == 'DNW' else 1",
-                "apply": true
+                "f": "lambda x: 0 if x == 'DNW' else 1"
             }
         },
         {
@@ -1346,14 +1257,6 @@
                     "Sport"
                 ],
                 "f": "dt.sum(dt.f['Medal_Won'])"
-            },
-            "input_polars": {
-                "columns": [
-                    "Team",
-                    "Name",
-                    "Sport"
-                ],
-                "f": "pl.sum(pl.col('Medal_Won'))"
             }
         },
         {
@@ -1375,14 +1278,6 @@
                     "Sport"
                 ],
                 "f": "dt.count(dt.f['NOC'])"
-            },
-            "input_polars": {
-                "columns": [
-                    "Team",
-                    "Name",
-                    "Sport"
-                ],
-                "f": "pl.count(pl.col('NOC'))"
             }
         },
         {
@@ -1413,15 +1308,6 @@
                 "to_replace": "Athina",
                 "value": "Athens",
                 "regex": false
-            },
-            "input_polars": {
-                "columns": [
-                    "City"
-                ],
-                "to_replace": "Athina",
-                "value": "Athens",
-                "regex": false,
-                "return_dtype": "pl.Utf8"
             }
         },
         {
@@ -1433,15 +1319,6 @@
                 "to_replace": "Moskva",
                 "value": "Moscow",
                 "regex": false
-            },
-            "input_polars": {
-                "columns": [
-                    "City"
-                ],
-                "to_replace": "Moskva",
-                "value": "Moscow",
-                "regex": false,
-                "return_dtype": "pl.Utf8"
             }
         },
         {
@@ -1455,9 +1332,8 @@
             "input": {
                 "sep": ","
             },
-            "input_datatable": {},
-            "input_vaex": {},
-            "input_polars": {}
+            "input_datatable":{},
+            "input_vaex": {}
         }
     ]
 }

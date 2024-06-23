@@ -1,7 +1,5 @@
-
+from src.algorithms.run import run_algo_locally, run_algo_docker, run_pipeline_locally
 import argparse
-import sys
-import os
 
 if __name__ == "__main__":
     
@@ -38,11 +36,6 @@ if __name__ == "__main__":
         action="store_true"
     )
     parser.add_argument(
-        '--requirements',
-        help='Runs the algorithm locally instead of on docker',
-        action="store_true"
-    )
-    parser.add_argument(
         '--mem-limit',
         help='Memory limit for docker container (default maximum available memory)',
         default=None
@@ -54,55 +47,9 @@ if __name__ == "__main__":
         type=int
     )
     args = parser.parse_args()
-
+    #If locally is set to true the algorithm will run locally
     if args.locally:
-        print("Pipeline mode running locally")
-                # check python version
-        if sys.version_info[0] < 3:
-            raise Exception("Must be using Python 3")
-
-        # install requirements
-        if args.requirements:
-            os.system("pip install -r requirements.txt")
-
-        from src.datasets.dataset import Dataset
-        ds = Dataset().get_dataset_by_name(args.dataset)
-        if ds is None:
-            raise Exception(f"Dataset {args.dataset} not found")
-
-        from src.algorithms.run import run_pipeline_locally
+        # algorithm, dataset, cpu_limit=None, mem_limit=None, algorithm_params=None, pipeline=False)
         run_pipeline_locally(args.algorithm, args.dataset, args.cpu_limit, args.mem_limit, args.algorithm_params, args.pipeline, args.pipeline_step)
-
-    # if args.locally:
-    #     # check python version
-    #     if sys.version_info[0] < 3:
-    #         raise Exception("Must be using Python 3")
-
-    #     # install requirements
-    #     if args.requirements:
-    #         os.system("pip install -r requirements.txt")
-
-    #     from src.algorithms.run import run_algo_locally
-    #     from src.datasets.dataset import Dataset
-
-    #     ds = Dataset().get_dataset_by_name(args.dataset)
-    #     if ds is None:
-    #         raise Exception(f"Dataset {args.dataset} not found")
-    #     print("Running test functions")
-    #     run_algo_locally(args.algorithm, args.dataset, args.algorithm_params, args.cpu_limit, args.mem_limit)
-
-
     else:
-        try:
-            import docker
-        except Exception:
-            os.system("pip install docker")
-            import docker
-
-        from src.algorithms.run import run_algo_docker
-        from src.algorithms.utils import install
-        # check return code
-        ret = install(args.algorithm, args.algorithm_params)
-        if ret != 0:
-            raise Exception("Error building docker image")
-        run_algo_docker(args.algorithm, args.dataset, args.algorithm_params, args.cpu_limit, args.mem_limit, args.pipeline, args.pipeline_step)
+        run_algo_docker(args.algorithm, args.dataset, args.cpu_limit, args.mem_limit, args.pipeline)

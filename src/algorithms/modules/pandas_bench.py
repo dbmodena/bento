@@ -1,12 +1,13 @@
 from unicodedata import name
 import warnings
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 import re
 from typing import Union
 from haversine import haversine
 import pandas as pd
-import h5py
+
+# import h5py
 from src.algorithms.utils import timing
 from src.datasets.dataset import Dataset
 from src.algorithms.algorithm import AbstractAlgorithm
@@ -15,9 +16,12 @@ from src.algorithms.algorithm import AbstractAlgorithm
 class PandasBench(AbstractAlgorithm):
     df_: Union[pd.DataFrame, pd.Series] = None
     backup_: Union[pd.DataFrame, pd.Series] = None
-    ds_ : Dataset = None
-    #name = "pandas"
-    def __init__(self, name:str, mem: str = None, cpu: int = None, pipeline: bool = False):
+    ds_: Dataset = None
+
+    # name = "pandas"
+    def __init__(
+        self, name: str, mem: str = None, cpu: int = None, pipeline: bool = False
+    ):
         self.mem_ = mem
         self.cpu_ = cpu
         self.pipeline = pipeline
@@ -57,7 +61,7 @@ class PandasBench(AbstractAlgorithm):
         self.ds_ = ds
         path = ds.dataset_attribute.path
         format = ds.dataset_attribute.type
-        
+
         if format == "csv":
             self.df_ = self.read_csv(path, **kwargs)
         elif format == "excel":
@@ -72,7 +76,7 @@ class PandasBench(AbstractAlgorithm):
             self.df_ = self.read_hdf5(path, **kwargs)
         elif format == "xml":
             self.df_ = self.read_xml(path, **kwargs)
-            
+
         return self.df_
 
     def read_sql(self, query, conn, **kwargs):
@@ -94,24 +98,15 @@ class PandasBench(AbstractAlgorithm):
         """
         Read a csv file
         """
-        if self.name == "pandas20":
-            self.df_ = pd.read_csv(path, **kwargs, engine='pyarrow')
-        else:
-            self.df_ = pd.read_csv(path, **kwargs)
+        self.df_ = pd.read_csv(path, **kwargs)
         return self.df_
-    
+
     def read_hdf5(self, path, **kwargs):
         """
         Given a connection and a query
         creates a dataframe from the query output
         """
-        try:
-            self.df_ = pd.read_hdf(path, **kwargs)
-        except:
-            keys = list(h5py.File(path, 'r').keys())
-            store = pd.HDFStore(path)
-            self.df_ = store[keys[0]]         
-        return self.df_
+        pass
 
     def read_xml(self, path, **kwargs):
         """
@@ -131,10 +126,7 @@ class PandasBench(AbstractAlgorithm):
         """
         Read a parquet file
         """
-        if self.name == "pandas20":
-            self.df_ = pd.read_parquet(path, **kwargs, engine='pyarrow')
-        else:
-            self.df_ = pd.read_parquet(path, **kwargs)
+        self.df_ = pd.read_parquet(path, **kwargs)
         return self.df_
 
     @timing
@@ -237,23 +229,29 @@ class PandasBench(AbstractAlgorithm):
         on the provided column.
         Pattern could be a regular expression.
         """
-        test = self.df_[column].fillna('').str.contains(re.compile(pattern))
+        test = self.df_[column].fillna("").str.contains(re.compile(pattern))
         return self.df_[test]
 
     @timing
-    def locate_outliers(self, column, lower_quantile=0.1, upper_quantile=0.99, **kwargs):
+    def locate_outliers(
+        self, column, lower_quantile=0.1, upper_quantile=0.99, **kwargs
+    ):
         """
         Returns the rows of the dataframe that have values
         in the provided column lower or higher than the values
         of the lower/upper quantile.
-        """       
+        """
         import numpy as np
-        
+
         if column == "all":
             column = self.df_.select_dtypes(include=np.number).columns.tolist()
 
         # Calculate the percentile values for each column
-        percentiles = np.percentile(self.df_[column].values, [(lower_quantile*100), (upper_quantile*100)], axis=0)
+        percentiles = np.percentile(
+            self.df_[column].values,
+            [(lower_quantile * 100), (upper_quantile * 100)],
+            axis=0,
+        )
 
         # Create boolean masks for values lower and higher than the quantile values
         lower_mask = (self.df_[column] < percentiles[0]).any(axis=1)
@@ -308,9 +306,15 @@ class PandasBench(AbstractAlgorithm):
             .to_dict()
         )
 
-        return [{"col": k, "current_dtype": current_dtypes[k], "suggested_dtype": new_dtypes[k],} 
-                for k in current_dtypes.keys() 
-                if new_dtypes[k] != current_dtypes[k]]
+        return [
+            {
+                "col": k,
+                "current_dtype": current_dtypes[k],
+                "suggested_dtype": new_dtypes[k],
+            }
+            for k in current_dtypes.keys()
+            if new_dtypes[k] != current_dtypes[k]
+        ]
 
     @timing
     def check_allowed_char(self, column, pattern):
@@ -348,7 +352,9 @@ class PandasBench(AbstractAlgorithm):
         column datatype must be datetime
         An example of format is '%m/%d/%Y'
         """
-        self.df_[column] = pd.to_datetime(self.df_[column], errors='coerce', format=format)
+        self.df_[column] = pd.to_datetime(
+            self.df_[column], errors="coerce", format=format
+        )
         self.df_[column] = self.df_[column].dt.strftime(format)
         return self.df_
 
@@ -411,7 +417,7 @@ class PandasBench(AbstractAlgorithm):
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
         (see pivot_table in pandas documentation)
         """
-        return  pd.pivot_table(
+        return pd.pivot_table(
             self.df_, index=index, values=values, columns=columns, aggfunc=aggfunc
         ).reset_index()
 
@@ -436,7 +442,7 @@ class PandasBench(AbstractAlgorithm):
         Delete the rows with null values for all provided Columns
         Columns is a list of column names
         """
-        if columns=="all":
+        if columns == "all":
             columns = self.get_columns()
         self.df_.dropna(subset=columns, inplace=True)
         return self.df_
@@ -473,7 +479,6 @@ class PandasBench(AbstractAlgorithm):
                 .str.normalize("NFKD")
                 .str.encode("ascii", errors="ignore")
                 .str.decode("utf-8")
-                
             )
         return self.df_
 
@@ -495,16 +500,20 @@ class PandasBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def calc_column(self, col_name, f, columns=None):
+    def calc_column(self, col_name, f, columns=None, apply=False):
         """
         Calculate the new column col_name by applying
         the function f to the whole dataframe
         """
         if not columns:
-            columns = self.get_columns()
-        if type(f) == str:
-            f = eval(f)
-        self.df_[col_name] = self.df_[columns].apply(f, axis=1)
+            columns = self.df_.columns
+        if apply:
+            if type(f) == str:
+                f = eval(f)
+            self.df_[col_name] = self.df_[columns].apply(f, axis=1)
+        else:
+            if type(f) == str:
+                self.df_[col_name] = eval(f)
         return self.df_
 
     @timing
@@ -523,20 +532,54 @@ class PandasBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def groupby(self, columns, f):
+    def groupby(self, columns, f, cast=None):
         """
         Aggregate the dataframe by the provided columns
-        then applies the function f on every group
+        then applies the specified function f on every group.
+        The function f can be a string representing a pandas DataFrameGroupBy method with arguments.
         """
-        
-        if self.name == "pandas20":
-            try:
-                return self.df_.groupby(columns).agg(f)
-            except Exception:
-                return self.df_.dropna().groupby(columns).agg(f)
-        
-        return self.df_.groupby(columns).agg(f)
-    
+        # Define the allowed aggregation methods and their corresponding functions
+        if type(f)==str:
+            allowed_methods = {
+                "cummin": lambda x: x.cummin(),
+                "cummax": lambda x: x.cummax(),
+                "idxmin": lambda x: x.idxmin(),
+                "idxmax": lambda x: x.idxmax(),
+                "var": lambda x: x.var(),
+                "std": lambda x: x.std(),
+                "sem": lambda x: x.sem(),
+                "quantile": lambda x: x.quantile(),
+                "mean": lambda x, **kwargs: x.mean(**kwargs),
+                "count": lambda x, **kwargs: x.count(),
+            }
+
+            # Parse the function name and arguments
+            parts = f.split("(")
+            method_name = parts[0].strip()
+            args_str = "(" + parts[1] if len(parts) > 1 else None
+
+            # Check if the specified method is allowed
+            if method_name not in allowed_methods:
+                raise ValueError(f"Unsupported method '{method_name}'")
+
+            # Get the corresponding function
+            method_func = allowed_methods[method_name]
+
+            # Perform the groupby operation
+            grouped = self.df_.groupby(columns)
+
+            # Apply the specified function with arguments if provided
+            if args_str:
+                # Evaluate the arguments to create a dictionary of keyword arguments
+                kwargs = eval("dict" + args_str)
+                result = grouped.apply(lambda x: method_func(x, **kwargs))
+            else:
+                # No arguments provided, apply the function directly
+                result = grouped.apply(method_func)
+        elif type(f)==dict:
+            result = self.df_.groupby(columns).agg(f)
+
+        return result
 
     @timing
     def categorical_encoding(self, columns):
@@ -546,7 +589,6 @@ class PandasBench(AbstractAlgorithm):
         """
         for column in columns:
             self.df_[column] = self.df_[column].astype("category").cat.codes
-            #self.df_[column] = self.df_[column].cat.codes
         return self.df_
 
     @timing
@@ -629,30 +671,27 @@ class PandasBench(AbstractAlgorithm):
         Duplicate columns are those which have same values for each row.
         """
         cols = self.df_.columns.values
-        return [(cols[i], cols[j]) 
-                for i in range(len(cols)) 
-                for j in range(i + 1, len(cols)) 
-                if self.df_[cols[i]].equals(self.df_[cols[j]])]
+        return [
+            (cols[i], cols[j])
+            for i in range(len(cols))
+            for j in range(i + 1, len(cols))
+            if self.df_[cols[i]].equals(self.df_[cols[j]])
+        ]
 
     @timing
-    def to_csv(self, path="./pipeline_output/pandas_output.csv", **kwargs):
+    def to_csv(self, path=f"./outputs/pandas_loan_output.csv", **kwargs):
         """
         Export the dataframe in a csv file.
         """
-        # check if the results folder exists
-        import os
-        if not os.path.exists("pipeline_output"):
-            os.makedirs("pipeline_output")
-        
         self.df_.to_csv(path, **kwargs)
 
     @timing
-    def to_parquet(self, path="./pipeline_output/pandas_output.parquet", **kwargs):
+    def to_parquet(self, path="./outputs/pandas_output.parquet", **kwargs):
         """
         Export the dataframe in a csv file.
         """
         self.df_.to_parquet(path, **kwargs)
-        
+
     @timing
     def query(self, query, inplace=False):
         """
@@ -665,12 +704,13 @@ class PandasBench(AbstractAlgorithm):
             self.df_ = self.df_.query(query)
             return self.df_
         return self.df_.query(query)
-    
+
     def force_execution(self):
         pass
-    
+
+    @timing
     def done(self):
         pass
-        
+
     def set_construtor_args(self, args):
         pass

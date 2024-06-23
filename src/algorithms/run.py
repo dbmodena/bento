@@ -1,22 +1,29 @@
 import contextlib
-import json
-import os
-import threading
+import importlib
 import time
-import traceback
 import tracemalloc
-
-import colors
 import docker
+import os
+import json
 import psutil
+import colors
+import threading
+import traceback
+from src.algorithms.algorithm import AbstractAlgorithm
+from memory_profiler import profile
 
 from src.algorithms.algorithms_factory import AlgorithmsFactory
-from src.algorithms.utils import *
 from src.datasets.dataset import Dataset
+from src.algorithms.utils import *
 
 
 def run_algo_locally(
-    algorithm, dataset, algorithm_params=None, cpu_limit="1", mem_limit=None
+    algorithm,
+    dataset,
+    algorithm_params=None,
+    cpu_limit="1",
+    mem_limit=None,
+    pipeline=False,
 ):
     """
     Runs an algorithm on local machine
@@ -32,14 +39,17 @@ def run_algo_locally(
         algorithm_params = set_algorithm_params(algorithm_params, mem_limit, cpu_limit)
 
     algo = factory.build_algorithm(
-        algorithm, mem_limit, cpu_limit, conf=algorithm_params, pipeline=False
+        algorithm, mem_limit, cpu_limit, conf=algorithm_params, pipeline=pipeline
     )
 
     # Create log file
+    print(dataset)
     ds = Dataset().get_dataset_by_name(dataset)
 
     # Load the tests to perform on the dataset
+    print(ds.dataset_attribute.test)
     tests = load_tests(ds.dataset_attribute.test)
+
     # Execute each test on the dataset
     execute_methods(tests, ds, algo)
 
@@ -57,10 +67,15 @@ def run_algo_docker(
     Runs an algorithm inside a docker container
     """
 
-    cmd = ["--algorithm", algorithm, "--dataset", dataset, "--locally"]
+    cmd = [
+        "--algorithm",
+        algorithm,
+        "--dataset",
+        dataset,
+    ]
     if pipeline:
         cmd.append("--pipeline")
-    elif step:
+    if step:
         cmd.append("--pipeline-step")
 
     if mem_limit is not None:
@@ -72,12 +87,14 @@ def run_algo_docker(
         cmd.append(str(cpu_limit))
 
     docker_tag = f"df-benchmarks-{algorithm}"
+
     if mem_limit is None:
         mem_limit = int(psutil.virtual_memory().available / (1024.0**3))
 
     if algorithm_params:
         if cpu_limit is None:
             cpu_limit = 1
+        print(mem_limit, cpu_limit)
         algorithm_params = set_algorithm_params(
             algorithm_params, mem_limit, str(cpu_limit)
         )
@@ -100,6 +117,7 @@ def run_algo_docker(
     cpu_limit = "0" if cpu_limit is None else f"0-{cpu_limit - 1}"
 
     client = docker.from_env()
+
     container = client.containers.run(
         docker_tag,
         runtime="nvidia",
@@ -119,6 +137,8 @@ def run_algo_docker(
     )  # ,
 
     # show gpu configuration
+    import cudf
+
     def stream_logs():
         for line in container.logs(stream=True):
             print(colors.color(line.decode().rstrip(), fg="white"))
@@ -183,6 +203,7 @@ def run_pipeline_locally(
         log_mem_limit = "max"
 
     if algorithm_params:
+        print(mem_limit, cpu_limit)
         algorithm_params = set_algorithm_params(algorithm_params, mem_limit, cpu_limit)
 
     algo = factory.build_algorithm(
@@ -190,19 +211,21 @@ def run_pipeline_locally(
     )
 
     # Create log file
+    print(dataset)
     ds = Dataset().get_dataset_by_name(dataset)
 
     # Load the tests to perform on the dataset
+    print(dataset)
+    print(ds.dataset_attribute.pipe)
     pipeline_step = load_tests(ds.dataset_attribute.pipe)
     if (not step) and pipeline:
+
         print("Running pipeline")
         process = psutil.Process(os.getpid())
         start_time = time.time()
         memory_used_s = psutil.virtual_memory().used
         # Start tracking memory usage
-        resource.setrlimit(
-            resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-        )
+
         tracemalloc.start()
 
         # Get the current memory usage
@@ -255,9 +278,6 @@ def run_pipeline_locally(
             # execute_methods(tests, ds, algo)
             start_time = time.time()
             # Start tracking memory usage
-            resource.setrlimit(
-                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-            )
 
             # Call the function
             execute_methods(tests, ds, algo, step)
@@ -288,3 +308,7 @@ def run_pipeline_locally(
         print("Running core functions")
         for key, tests in pipeline_step.items():
             execute_methods(tests, ds, algo, step)
+    
+    #algo.builder.stop()
+    del algo
+    print('Deleted')

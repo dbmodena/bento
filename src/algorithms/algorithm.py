@@ -296,13 +296,6 @@ class AbstractAlgorithm(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def drop_duplicates(self):
-        """
-        Drop duplicate rows.
-        """
-        pass
-
-    @abc.abstractmethod
     def drop_by_pattern(self, column, pattern):
         """
         Delete the rows where the provided pattern
