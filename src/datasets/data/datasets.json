@@ -34,6 +34,12 @@
     "pipe": "datasets/nyc_taxi/nyc_taxi_load.json",
     "type": "csv"
   },
+  "nyc_taxi_load_parquet": {
+    "path": "datasets/parquet_datasets/nyc_taxi.parquet",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_taxi_load_parq.json",
+    "type": "parquet"
+  },
   "test_hdf5": {
     "path": "datasets/test_hdf5/census.hdf5",
     "test": "datasets/test_hdf5/test_hdf5.json",
@@ -45,9 +51,27 @@
     "test": "datasets/athlete/athlete_events_test.json",
     "type": "csv"
   },
-  "athlete_parq": {
-    "path": "datasets/parquet_datasets/athlete.parquet",
+  "athlete_2": {
+    "path": "datasets/athlete/athlete_noc.csv",
+    "pipe": "datasets/athlete/athlete_2_pipe.json",
+    "test": "",
+    "type": "csv"
+  },
+  "athlete_3": {
+    "path": "datasets/athlete/athlete_noc.csv",
+    "pipe": "datasets/athlete/athlete_3_pipe.json",
+    "test": "",
+    "type": "csv"
+  },
+  "athlete_load": {
+    "path": "datasets/athlete/athlete_events.csv",
     "pipe": "datasets/athlete/athlete_events_load.json",
+    "test": "datasets/athlete/athlete_events_test.json",
+    "type": "csv"
+  },
+  "athlete_load_parquet": {
+    "path": "datasets/parquet_datasets/athlete.parquet",
+    "pipe": "datasets/athlete/athlete_events_load_parq.json",
     "test": "datasets/athlete/athlete_events_test.json",
     "type": "parquet"
   },
@@ -57,16 +81,34 @@
     "pipe": "datasets/loan_data/loan_data_pipe.json",
     "type": "csv"
   },
+  "loan_2": {
+    "path": "datasets/loan_data/loan_data.csv",
+    "test": "datasets/loan_data/loan_data_test.json",
+    "pipe": "datasets/loan_data/loan_2_pipe.json",
+    "type": "csv"
+  },
+  "loan_3": {
+    "path": "datasets/loan_data/loan_data.csv",
+    "test": "datasets/loan_data/loan_data_test.json",
+    "pipe": "datasets/loan_data/loan_3_pipe.json",
+    "type": "csv"
+  },
   "loan_100k": {
     "path": "datasets/loan_data/loan_data_100k.csv",
     "test": "datasets/loan_data/loan_data_test.json",
     "pipe": "datasets/loan_data/loan_data_pipe.json",
     "type": "csv"
   },
-  "loan_parq": {
-    "path": "datasets/parquet_datasets/loan_data.parquet",
+  "loan_load": {
+    "path": "datasets/loan_data/loan_data.csv",
     "test": "datasets/loan_data/loan_data_test_parq.json",
     "pipe": "datasets/loan_data/loan_data_load.json",
+    "type": "csv"
+  },
+  "loan_load_parquet": {
+    "path": "datasets/parquet_datasets/loan_data.parquet",
+    "test": "datasets/loan_data/loan_data_test_parq.json",
+    "pipe": "datasets/loan_data/loan_data_load_parq.json",
     "type": "parquet"
   },
   "state_patrol": {
@@ -75,13 +117,49 @@
     "pipe": "datasets/state_patrol/state_patrol_pipe.json",
     "type": "csv"
   },
+  "patrol_2": {
+    "path": "datasets/state_patrol/state_patrol.csv",
+    "test": "datasets/state_patrol/state_patrol_test.json",
+    "pipe": "datasets/state_patrol/patrol_2_pipe.json",
+    "type": "csv"
+  },
+  "patrol_3": {
+    "path": "datasets/state_patrol/state_patrol.csv",
+    "test": "datasets/state_patrol/state_patrol_test.json",
+    "pipe": "datasets/state_patrol/patrol_3_pipe.json",
+    "type": "csv"
+  },
+  "patrol_inverted": {
+    "path": "datasets/state_patrol/state_patrol.csv",
+    "test": "datasets/state_patrol/state_patrol_test.json",
+    "pipe": "datasets/state_patrol/state_patrol_pipe_inverted.json",
+    "type": "csv"
+  },
+  "patrol_2_inverted": {
+    "path": "datasets/state_patrol/state_patrol.csv",
+    "test": "datasets/state_patrol/state_patrol_test.json",
+    "pipe": "datasets/state_patrol/patrol_2_pipe_inverted.json",
+    "type": "csv"
+  },
+  "patrol_3_inverted": {
+    "path": "datasets/state_patrol/state_patrol.csv",
+    "test": "datasets/state_patrol/state_patrol_test.json",
+    "pipe": "datasets/state_patrol/patrol_3_pipe_inverted.json",
+    "type": "csv"
+  },
   "state_patrol_pandas": {
     "path": "datasets/state_patrol/state_patrol.csv",
     "test": "datasets/state_patrol/state_patrol_test.json",
     "pipe": "datasets/state_patrol/state_patrol_pandas_pipe.json",
     "type": "csv"
   },
-  "state_patrol_parq": {
+  "state_patrol_load": {
+    "path": "datasets/state_patrol/state_patrol.csv",
+    "test": "datasets/state_patrol/state_patrol_test.json",
+    "pipe": "datasets/state_patrol/state_patrol_load.json",
+    "type": "csv"
+  },
+  "state_patrol_load_parquet": {
     "path": "datasets/parquet_datasets/state_patrol.parquet",
     "test": "datasets/state_patrol/state_patrol_test.json",
     "pipe": "datasets/state_patrol/state_patrol_load.json",
@@ -99,10 +177,46 @@
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
     "type": "csv"
   },
+  "nyc_1_2": {
+    "path": "datasets/nyc_taxi/nyc_taxi_1%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_1_3": {
+    "path": "datasets/nyc_taxi/nyc_taxi_1%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
+    "type": "csv"
+  },
+  "nyc_2": {
+    "path": "datasets/nyc_taxi/yellow_tripdata_2015-01-06.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_3": {
+    "path": "datasets/nyc_taxi/yellow_tripdata_2015-01-06.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
+    "type": "csv"
+  },
   "nyc_5": {
     "path": "datasets/nyc_taxi/nyc_taxi_5%.csv",
     "test": "datasets/nyc_taxi/nyc_taxi_test.json",
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
+    "type": "csv"
+  },
+  "nyc_5_2": {
+    "path": "datasets/nyc_taxi/nyc_taxi_5%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_5_3": {
+    "path": "datasets/nyc_taxi/nyc_taxi_5%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
     "type": "csv"
   },
   "nyc_15": {
@@ -111,10 +225,34 @@
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
     "type": "csv"
   },
+  "nyc_15_2": {
+    "path": "datasets/nyc_taxi/nyc_taxi_15%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_15_3": {
+    "path": "datasets/nyc_taxi/nyc_taxi_15%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
+    "type": "csv"
+  },
   "nyc_25": {
     "path": "datasets/nyc_taxi/nyc_taxi_25%.csv",
     "test": "datasets/nyc_taxi/nyc_taxi_test.json",
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
+    "type": "csv"
+  },
+  "nyc_25_2": {
+    "path": "datasets/nyc_taxi/nyc_taxi_25%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
+    "type": "csv"
+  },
+  "nyc_25_3": {
+    "path": "datasets/nyc_taxi/nyc_taxi_25%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_pipe_pipe.json",
     "type": "csv"
   },
   "nyc_50": {
@@ -123,16 +261,52 @@
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
     "type": "csv"
   },
+  "nyc_50_2": {
+    "path": "datasets/nyc_taxi/nyc_taxi_50%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_50_3": {
+    "path": "datasets/nyc_taxi/nyc_taxi_50%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
+    "type": "csv"
+  },
   "nyc_75": {
     "path": "datasets/nyc_taxi/nyc_taxi_75%.csv",
     "test": "datasets/nyc_taxi/nyc_taxi_test.json",
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
     "type": "csv"
   },
+  "nyc_75_2": {
+    "path": "datasets/nyc_taxi/nyc_taxi_75%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_75_3": {
+    "path": "datasets/nyc_taxi/nyc_taxi_75%.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
+    "type": "csv"
+  },
   "nyc_100": {
     "path": "datasets/nyc_taxi/yellow_tripdata_2015-01-06.csv",
     "test": "datasets/nyc_taxi/nyc_taxi_test.json",
     "pipe": "datasets/nyc_taxi/nyc_taxi_pipe.json",
+    "type": "csv"
+  },
+  "nyc_100_2": {
+    "path": "datasets/nyc_taxi/yellow_tripdata_2015-01-06.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_2_pipe.json",
+    "type": "csv"
+  },
+  "nyc_100_3": {
+    "path": "datasets/nyc_taxi/yellow_tripdata_2015-01-06.csv",
+    "test": "datasets/nyc_taxi/nyc_taxi_test.json",
+    "pipe": "datasets/nyc_taxi/nyc_3_pipe.json",
     "type": "csv"
   },
   "sp_1": {
@@ -174,7 +348,7 @@
   "sp_100": {
     "path": "datasets/state_patrol/state_patrol.csv",
     "test": "datasets/state_patrol/state_patrol_test.json",
-    "pipe": "datasets/state_patrol/state_patrol_load.json",
+    "pipe": "datasets/state_patrol/state_patrol_pipe.json",
     "type": "csv"
   }
 }
