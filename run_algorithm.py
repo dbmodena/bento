@@ -49,7 +49,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     #If locally is set to true the algorithm will run locally
     if args.locally:
-        # algorithm, dataset, cpu_limit=None, mem_limit=None, algorithm_params=None, pipeline=False)
         run_pipeline_locally(args.algorithm, args.dataset, args.cpu_limit, args.mem_limit, args.algorithm_params, args.pipeline, args.pipeline_step)
     else:
         run_algo_docker(args.algorithm, args.dataset, args.cpu_limit, args.mem_limit, args.pipeline)
