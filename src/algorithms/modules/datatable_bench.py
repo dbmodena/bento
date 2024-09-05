@@ -5,6 +5,7 @@ from unicodedata import name, numeric
 import warnings
 
 from polars import col
+from pyspark.ml.util import W
 
 warnings.filterwarnings('ignore')
 import re
@@ -12,6 +13,7 @@ from typing import Union
 from haversine import haversine
 import pandas as pd
 import datatable as dt
+from datatable import f as F
 import numpy as np
 import h5py
 from src.algorithms.utils import timing
@@ -23,12 +25,13 @@ class DataTableBench(AbstractAlgorithm):
     df_: Union[pd.DataFrame, pd.Series] = None
     backup_: Union[pd.DataFrame, pd.Series] = None
     ds_ : Dataset = None
-    #name = "pandas"
+
     def __init__(self, name:str, mem: str = None, cpu: int = None, pipeline: bool = False):
         self.mem_ = mem
         self.cpu_ = cpu
         self.pipeline = pipeline
         self.name = name
+        self.dataframes = {}
 
     def backup(self):
         """
@@ -169,12 +172,8 @@ class DataTableBench(AbstractAlgorithm):
         Columns is a dictionary: {"column_name": "new_name"}
         """
         for c, n in columns.items():
-            #print(self.df_[:, {n: dt.f[c]}])
             self.df_[n] = self.df_[:, c]
             self.df_ = self.df_[:, [x for x in self.df_.names if x != c]]
-            #self.df_ = 
-            #self.df_ = self.df_[:, {dt.f[c]: n}]
-        #self.df_ = self.df_[:, dt.update(**columns)]
         return self.df_
 
     @timing
@@ -214,21 +213,10 @@ class DataTableBench(AbstractAlgorithm):
         Performs one-hot encoding of the provided columns
         Columns is a list of column names
         """
-        # for column in columns:
-        #     data = self.df_[column].to_list()[0]
-        #     one_hot = pd.get_dummies(data)
-        #     for c in one_hot.columns:
-        #         self.df_[f'{column}_{c}'] = one_hot[c].astype(int).values
-
-        # Iterate over each column to create one-hot encoding
         for column in columns:
-            # Get the unique values in the column
             unique_values = dt.unique(self.df_[column]).to_list()[0]
-
-            # iterate over each unique value to create a binary mask
             for value in unique_values:
                 self.df_[f"{column}_{value}"] = dt.ifelse(dt.f[column] == value, 1, 0)
-
         return self.df_
 
     @timing
@@ -241,8 +229,6 @@ class DataTableBench(AbstractAlgorithm):
             column = self.get_columns()
 
         return self.df_[:, dt.isna(dt.f[column])]
-        #return self.df_[dt.isna(dt.f[column])]
-
     @timing
     def search_by_pattern(self, column, pattern):
         """
@@ -257,7 +243,6 @@ class DataTableBench(AbstractAlgorithm):
         except Exception:
             print("not regex")
             filtered = list(filter(lambda x: pattern in x if x else "", search[column].to_list()[0]))
-        #search[c] = dt.ifelse(dt.isna(dt.f[c]), '', dt.f[c])
         if filtered:
             return search[:, dt.f[column] == filtered]
     
@@ -271,7 +256,7 @@ class DataTableBench(AbstractAlgorithm):
         """       
         if column == "all":
             column = self.df_.names
-        import numpy as np
+
         cols = [
             c
             for c in column
@@ -305,13 +290,15 @@ class DataTableBench(AbstractAlgorithm):
             if (str(dtype) != "str") and (column in self.df_.names):
                 if str(dtype) == "Type.time64":                
                     try:
-                        self.df_[column] = dtype
+                        self.df_ =  self.df_[:, dt.as_type(F.column, dtype)]
                     except Exception:
+                        print("the column is not a time, we try to convert it")
                         arr = [f'1970-01-01 {i}' for i in self.df_[column].to_list()[0]]
                         arr = [datetime.datetime.strptime(i, '%Y-%m-%d %H:%M:%S') for i in arr]
                         self.df_[column] = np.array(arr)
                 else:
-                    self.df_[column] = dtype
+                    if self.df_[column].type != dtype:
+                        self.df_ = self.df_[:, dt.as_type(F.column, dtype)]
                 
         return self.df_
 
@@ -323,17 +310,21 @@ class DataTableBench(AbstractAlgorithm):
         Only for numeric columns.
         Min value, max value, average value, standard deviation, and standard quantiles.
         """
-        
-        return {
-            "min": self.df_.min(),
-            "max": self.df_.max(),
-            "mean": self.df_.mean(),
-            "sd": self.df_.sd(),
-            "skew": self.df_.skew(),
-            "kurt": self.df_.kurt(),
-            "sum": self.df_.sum(),
-            "countna": self.df_.countna()
-        }
+        rows = []
+        for c in self.df_.names:
+            if str(self.df_[c].types[0]) in {"Type.int32", "Type.int64", "Type.float32", "Type.float64"}:
+                rows.append((c, 
+                             self.df_[c].min()[0, 0],
+                                self.df_[c].max()[0, 0],
+                                self.df_[c].mean()[0, 0],
+                                self.df_[c].sd()[0, 0],
+                                self.df_[:, dt.count(dt.f[c])][0, 0],
+                                np.percentile(np.array(self.df_[:, c]), [25], axis=0)[0][0],
+                                np.percentile(np.array(self.df_[:, c]), [50], axis=0)[0][0],
+                                np.percentile(np.array(self.df_[:, c]), [75], axis=0)[0][0]
+                            ))
+        stats = dt.Frame(rows, names=["Column", "Min", "Max", "Mean", "Std", "Count", "25%", "50%", "75%"])      
+        return stats
 
     @timing
     def find_mismatched_dtypes(self):
@@ -385,7 +376,6 @@ class DataTableBench(AbstractAlgorithm):
         column datatype must be datetime
         An example of format is '%m/%d/%Y'
         """
-        import numpy as np
         if self.df_[column].types[0] not in {"Type.date32", "Type.time", "Type.datetime"}:
             from datetime import datetime
             date_time = []
@@ -425,7 +415,6 @@ class DataTableBench(AbstractAlgorithm):
 
         if len(columns) == 0:
             columns = self.df_.names
-        import numpy as np
         for column in columns:
             arr = self.df_[:, columns].to_list()[0]
             if case == "lower":
@@ -451,25 +440,53 @@ class DataTableBench(AbstractAlgorithm):
         pass
     
     @timing
-    def pivot(self, index, columns, values, aggfunc):
+    def pivot(self, index, columns, values, aggfunc, other_df = None):
         """
         Define the lists of columns to be used as index, columns and values respectively,
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
         (see pivot_table in pandas documentation)
         """
-        print("Pivot table is not supported yet, groupby is used instead")
+        if other_df:
+            print("Pivot table is not supported yet, manually pivot the table")
+            aggfunc = eval(aggfunc)
+            self.dataframes[other_df] = self.dataframes[other_df][:, aggfunc(dt.f[values]), dt.by(index+columns) ]
+            return self.dataframes[other_df]
+        
+        print("Pivot table is not supported yet, manually pivot the table")
         return  self.df_[:, aggfunc(dt.f[values]), dt.by(index+columns) ]
     
 
 
 
     @timing
-    def unpivot(self, columns, var_name, val_name):
+    def unpivot(self, columns, var_name, val_name, other_df = None):
         """
         Define the list of columns to be used as values for the variable column,
         the name for variable columns and the one for value column_name
         """
-        pass
+        # manually unpivot
+        if other_df:
+            unpivoted = self.dataframes[other_df][:, columns]
+        else:
+            unpivoted = self.df_[:, columns]
+            
+        id_vars = columns
+        value_vars = [c for c in unpivoted.names if c not in columns]
+        rows = []
+        for row in self.df_.to_tuples():
+            season = row[0] 
+            for i, value_var in enumerate(value_vars):
+                value = row[i + 1]
+                rows.append((season, value_var, value))
+                
+        unpivoted = dt.Frame(rows, names=[id_vars[0], var_name, val_name])
+        if other_df:
+            self.dataframes[other_df] = unpivoted
+            return self.dataframes[other_df]
+
+        return unpivoted
+        
+        
 
     @timing
     def delete_empty_rows(self, columns):
@@ -526,21 +543,22 @@ class DataTableBench(AbstractAlgorithm):
         pass
 
     @timing
-    def calc_column(self, col_name, f, columns=None):
+    def calc_column(self, col_name, f, columns=None, apply = True):
         """
         Calculate the new column col_name by applying
         the function f to the whole dataframe
         """
         if not columns:
             columns = self.df_.names
-
-        if isinstance(f, str):
+            
+        if apply:
+            if isinstance(f, str):
+                self.df_[:, col_name] = eval(f)
+            
+        elif isinstance(f, str):
             f = eval(f)
-
-        import numpy as np
-        arr = self.df_[:, columns].to_numpy()
-        self.df_[:, col_name] = np.apply_along_axis(f, 1, arr)
-        
+            arr = self.df_[:, columns].to_numpy()
+            self.df_[:, col_name] = np.apply_along_axis(f, 1, arr)
         return self.df_
 
 
@@ -563,17 +581,45 @@ class DataTableBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def groupby(self, columns, f):
+    def groupby(self, columns, f, inplace=False, new_df = None):
         """
         Aggregate the dataframe by the provided columns
         then applies the function f on every group
         """
         try:
+            if new_df:
+                self.dataframes[new_df] = self.df_[:, eval(f), dt.by(columns)]
+                return self.dataframes[new_df]
+            
+            if inplace:
+                self.df_ = self.df_[:, eval(f), dt.by(columns)]
+                       
+                for c in self.df_.names:
+                    if f"{c}.0" in self.df_.names:
+                        pivot_values = dt.unique(self.df_[c]).to_list()[0]
+                        pivot_values = [x for x in pivot_values if x != '']
+                        grouped_cols = [col for col in columns if col != c]
+                        # if function is dt.sum(--) i want extract only dt.sum
+                        f = f.split('(')[0]
+                        grouped_df = self.df_[:, {f"{pv}": eval(f"{f}(dt.ifelse(dt.f[c] == pv, dt.f[f'{c}.0'], 0)) for pv in pivot_values", 0) for pv in pivot_values}, dt.by(grouped_cols)]
+                        self.df_ = grouped_df
+                        return self.df_
+                return self.df_
+
             return self.df_[:, eval(f), dt.by(columns)]
         except Exception:
             numeric_columns = [x for x in self.df_.names if self.df_[x].types[0] in [dt.Type.int32, dt.Type.int64, dt.Type.float32, dt.Type.float64]]
             filt = self.df_.copy()
             filt = filt[:, numeric_columns]
+            
+            if new_df:
+                self.dataframes[new_df] = filt[:, eval(f), dt.by(columns)]
+                return self.dataframes[new_df]
+
+            if inplace:
+                self.df_ = filt[:, eval(f), dt.by(columns)]
+                return self.df_
+            
             return filt[:, eval(f), dt.by(columns)]
     
 
@@ -688,7 +734,6 @@ class DataTableBench(AbstractAlgorithm):
         if not os.path.exists("./pipeline_output"):
             os.makedirs("./pipeline_output")
 
-        # convert the column to string
         for c in self.df_.names:
             if str(self.df_[c].types[0]) == "Type.obj64":
                 self.df_[c] = np.array(self.df_[c].to_list()[0], dtype=str)
