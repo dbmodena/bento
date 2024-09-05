@@ -30,6 +30,8 @@ class PandasPysparkBench(AbstractAlgorithm):
         self.cpu_ = cpu
         self.pipeline = pipeline
         self.name = name
+        self.scalars = {}
+        self.dataframes = {}
         
         import os
         import sys
@@ -60,7 +62,7 @@ class PandasPysparkBench(AbstractAlgorithm):
         pd.set_option('compute.ops_on_diff_frames', True)
 
 
-    def backup(self):
+   def backup(self):
         """
         Creates a backup copy of the current dataframe
         """
@@ -241,7 +243,7 @@ class PandasPysparkBench(AbstractAlgorithm):
         Columns is a list of column names
         """
         dummies = pd.get_dummies(self.df_[columns])
-        self.df_ = pd.concat([self.df_.drop(columns=columns), dummies], axis=1)
+        self.df_ = pd.concat([self.df_, dummies], axis=1)
         return self.df_
 
     @timing
@@ -274,25 +276,17 @@ class PandasPysparkBench(AbstractAlgorithm):
         in the provided column lower or higher than the values
         of the lower/upper quantile.
         """
-        import numpy as np
 
         if column == "all":
             column = self.df_.select_dtypes(include=np.number).columns.tolist()
 
-        # Calculate the percentile values for each column
-        percentiles = np.percentile(
-            self.df_[column].values,
-            [(lower_quantile * 100), (upper_quantile * 100)],
-            axis=0,
-        )
+        # Calculate the quantile values
+        lower, upper = self.df_[column].quantile([lower_quantile, upper_quantile])
 
-        numpy_array = self.df_[column].values
-        lt_values = numpy_array < percentiles[0]
-        gt_values = numpy_array > percentiles[1]
+        lower_mask = self.df_[column] < lower
+        upper_mask = self.df_[column] > upper
 
-        # get index of rows with outliers
-        index = np.where(lt_values | gt_values)[0]
-        return self.df_.iloc[index]
+        return self.df_[lower_mask | upper_mask]
 
     @timing
     def get_columns_types(self):
@@ -311,7 +305,7 @@ class PandasPysparkBench(AbstractAlgorithm):
         """
         for column, dtype in dtypes.items():
             if column in self.df_.columns:
-                self.df_[column] = self.df_[column].notnull().astype(dtype)
+                self.df_[column] = self.df_[column].astype(dtype)
 
         return self.df_
 
@@ -447,7 +441,7 @@ class PandasPysparkBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def pivot(self, index, columns, values, aggfunc):
+    def pivot(self, index, columns, values, aggfunc="mean", other_df=None):
         """
         Define the lists of columns to be used as index, columns and values respectively,
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
@@ -456,19 +450,41 @@ class PandasPysparkBench(AbstractAlgorithm):
         if (str(type(columns)) == "list") and (len(columns) > 1):
             print("Only one column can be used as columns")
             columns = [columns[0]]
+        if other_df:
+            self.dataframes[other_df] = (
+                self.dataframes[other_df]
+                .pivot_table(
+                    index=[index], values=values, columns=columns, aggfunc=aggfunc
+                )
+                .reset_index()
+            )
+            return self.dataframes[other_df]
+
         return self.df_.pivot_table(
             index=index, values=values, columns=columns[0], aggfunc=aggfunc
         ).reset_index()
 
     @timing
-    def unpivot(self, columns, var_name, val_name):
+    def unpivot(
+        self, id_vars=None, columns=None, var_name=None, val_name=None, other_df=None
+    ):
         """
         Define the list of columns to be used as values for the variable column,
         the name for variable columns and the one for value column_name
         """
+        if other_df:
+            self.dataframes[other_df] = (
+                self.dataframes[other_df].fillna("Unknown").astype(str)
+            )
+            # ensure that the columns are not null and string
+            self.dataframes[other_df] = pd.melt(
+                self.dataframes[other_df], id_vars=id_vars
+            )
+            return self.dataframes[other_df]
+
         self.df_ = pd.melt(
             self.df_,
-            id_vars=list(set(list(self.df_.columns.values)) - set(columns)),
+            id_vars=id_vars,
             value_vars=columns,
             var_name=var_name,
             value_name=val_name,
@@ -481,7 +497,6 @@ class PandasPysparkBench(AbstractAlgorithm):
         Delete the rows with null values for all provided Columns
         Columns is a list of column names
         """
-        
         if columns == "all":
             columns = self.get_columns()
         self.df_.dropna(subset=columns, inplace=True)
@@ -547,14 +562,36 @@ class PandasPysparkBench(AbstractAlgorithm):
         """
         if not columns:
             columns = self.get_columns()
-        if apply:
+        if not apply:
             if type(f) == str:
                 f = eval(f)
-                self.df_[col_name] = self.df_[columns].apply(f, axis=1)
+                self.df_[col_name] = self.df_[columns].apply(f, axis=1)  # , args=(,))
         else:
             if type(f) == str:
                 self.df_[col_name] = eval(f)
         return self.df_
+
+    @timing
+    def calc_scalar(self, name, f, columns=[], filter=None, use_scalars=False):
+        """
+        Apply the provided function to the dataframe
+        """
+        scalar = self.df_.copy()
+        if use_scalars:
+            scalar = eval(f)
+            return scalar
+
+        if filter:
+            scalar = scalar[eval(filter)]
+        if columns:
+            scalar = scalar[columns]
+
+        if type(f) == str:
+            f = eval(f)
+
+        scalar = scalar.apply(f)
+        self.scalars[name] = scalar.values[0]
+        return scalar
 
     @timing
     def join(self, other, left_on=None, right_on=None, how="inner", **kwargs):
@@ -572,14 +609,16 @@ class PandasPysparkBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def groupby(self, columns, f, cast=None):
+    def groupby(
+        self, columns, f, cast=None, new_df=None, inplace=False, no_multidx=False
+    ):
         """
         Aggregate the dataframe by the provided columns
         then applies the specified function f on every group.
         The function f can be a string representing a pandas DataFrameGroupBy method with arguments.
         """
         # Define the allowed aggregation methods and their corresponding functions
-        if type(f) == str:
+        if isinstance(f, str):
             allowed_methods = {
                 "cummin": lambda x: x.cummin(),
                 "cummax": lambda x: x.cummax(),
@@ -616,11 +655,64 @@ class PandasPysparkBench(AbstractAlgorithm):
             else:
                 # No arguments provided, apply the function directly
                 result = grouped.apply(method_func)
-        elif type(f) == dict:
+
+        elif isinstance(f, dict):
             if cast:
                 for column, t in cast.items():
+                    if str(self.df_[column].dtype) == "object":
+                        self.df_[column] = self.df_[column].fillna("Unknown")
+                    elif str(self.df_[column].dtype) in [
+                        "float64",
+                        "int64",
+                        "int32",
+                        "float32",
+                    ]:
+                        self.df_[column] = self.df_[column].fillna(0)
+                    elif str(self.df_[column].dtype) == "bool":
+                        self.df_[column] = self.df_[column].fillna(False)
                     self.df_[column] = self.df_[column].astype(t)
-            result = self.df_.groupby(columns).agg(f)
+
+            # Extract the first key from the dictionary for aggregation
+            agg_column = list(f.keys())[0]
+
+            # Check if the aggregation column is also in the groupby columns
+            if agg_column in columns:
+                if f[agg_column] == "count":
+                    # Remove the column to be aggregated from the columns list
+                    columns_without_agg_column = [
+                        col for col in columns if col != agg_column
+                    ]
+                    grouped_df = (
+                        self.df_.groupby(columns).size().reset_index(name="count")
+                    )
+                    result = grouped_df.pivot_table(
+                        index=columns_without_agg_column,
+                        values="count",
+                        aggfunc="sum",
+                        columns=agg_column,
+                    )
+                else:
+                    # Handle other aggregation functions if necessary
+                    result = self.df_.groupby(columns).agg(f)
+            else:
+                result = self.df_.groupby(columns).agg(f)
+
+        else:
+            raise ValueError(
+                "The aggregation function should be a string or a dictionary."
+            )
+
+        # Handle new_df, inplace, and no_multidx options
+        if new_df:
+            self.dataframes[new_df] = result.reset_index()
+            # print(self.dataframes[new_df].head())
+
+            return self.dataframes[new_df]
+
+        if inplace:
+            self.df_ = result.reset_index()
+            return self.df_
+
         return result
 
     @timing
@@ -631,6 +723,7 @@ class PandasPysparkBench(AbstractAlgorithm):
         """
         for column in columns:
             self.df_[column] = self.df_[column].astype("category").cat.codes
+            # self.df_[column] = self.df_[column].cat.codes
         return self.df_
 
     @timing
@@ -666,21 +759,15 @@ class PandasPysparkBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def edit(self, columns, func, ret_type):
+    def edit(self, columns, func):
         """
         Edit the values of the cells in the provided columns using the provided expression
         Columns is a list of column names
         """
-
-        import pyspark.sql.functions as fn
-        from pyspark.sql.types import DoubleType, StringType, DateType
-        self.df_ = self.df_.spark.frame()
-        
-
-        my_udf = fn.udf(f=eval(func), returnType=ret_type)
-
+        if type(func) == str:
+            func = eval(func)
         for c in columns:
-            self.df_ = self.df_.withColumn(c, my_udf(fn.col(c)))
+            self.df_[c] = self.df_[c].apply(func)
         return self.df_
 
     @timing
@@ -731,24 +818,27 @@ class PandasPysparkBench(AbstractAlgorithm):
         """
         Export the dataframe in a csv file.
         """
-        # handle `data type of void, which is not supported by CSV
-
-        # handle data type mismatch
         self.df_ = self.df_.astype(str)
         self.df_.fillna("null").to_csv(path, **kwargs)
 
     @timing
-    def query(self, query, inplace=False):
+    def query(self, query, values=None, inplace=False):
         """
         Queries the dataframe and returns the corresponding
         result set.
         :param query: a string with the query conditions, e.g. "col1 > 1 & col2 < 10"
         :return: subset of the dataframe that correspond to the selection conditions
         """
+        if values:
+
+            def query_func(pdf):
+                val1 = self.df_.Year.max()
+                return pdf.query(query)
+
+            return self.df_.pandas_on_spark.apply_batch(query_func)
         if type(query) == list:
             for q in query:
                 self.df_.query(q, inplace=inplace)
-
             return self.df_
 
         return self.df_.query(query, inplace=inplace)
