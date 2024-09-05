@@ -6,6 +6,7 @@ import re
 from typing import Union
 from haversine import haversine
 import pandas as pd
+import numpy as np
 
 # import h5py
 from src.algorithms.utils import timing
@@ -26,6 +27,8 @@ class PandasBench(AbstractAlgorithm):
         self.cpu_ = cpu
         self.pipeline = pipeline
         self.name = name
+        self.scalars = {}
+        self.dataframes = {}
 
     def backup(self):
         """
@@ -76,6 +79,8 @@ class PandasBench(AbstractAlgorithm):
             self.df_ = self.read_hdf5(path, **kwargs)
         elif format == "xml":
             self.df_ = self.read_xml(path, **kwargs)
+
+        print(self.df_.isna().sum())
 
         return self.df_
 
@@ -208,7 +213,7 @@ class PandasBench(AbstractAlgorithm):
         Columns is a list of column names
         """
         dummies = pd.get_dummies(self.df_[columns])
-        self.df_ = pd.concat([self.df_.drop(columns=columns), dummies], axis=1)
+        self.df_ = pd.concat([self.df_, dummies], axis=1)
         return self.df_
 
     @timing
@@ -218,7 +223,7 @@ class PandasBench(AbstractAlgorithm):
         null value in the provided column.
         """
         if column == "all":
-            column = self.get_columns()
+            column = self.df_.columns
         return self.df_[self.df_[column].isna()]
 
     @timing
@@ -241,21 +246,15 @@ class PandasBench(AbstractAlgorithm):
         in the provided column lower or higher than the values
         of the lower/upper quantile.
         """
-        import numpy as np
 
         if column == "all":
             column = self.df_.select_dtypes(include=np.number).columns.tolist()
 
-        # Calculate the percentile values for each column
-        percentiles = np.percentile(
-            self.df_[column].values,
-            [(lower_quantile * 100), (upper_quantile * 100)],
-            axis=0,
-        )
+        # Calculate the quantile values
+        lower, upper = self.df_[column].quantile([lower_quantile, upper_quantile])
 
-        # Create boolean masks for values lower and higher than the quantile values
-        lower_mask = (self.df_[column] < percentiles[0]).any(axis=1)
-        upper_mask = (self.df_[column] > percentiles[1]).any(axis=1)
+        lower_mask = self.df_[column] < lower
+        upper_mask = self.df_[column] > upper
 
         return self.df_[lower_mask | upper_mask]
 
@@ -299,7 +298,7 @@ class PandasBench(AbstractAlgorithm):
          - current_dtype: current data type
          - suggested_dtype: suggested data type
         """
-        current_dtypes = self.get_columns_types()
+        current_dtypes = self.df_.dtypes.apply(lambda x: x.name).to_dict()
         new_dtypes = (
             self.df_.apply(pd.to_numeric, errors="ignore")
             .dtypes.apply(lambda x: x.name)
@@ -411,22 +410,44 @@ class PandasBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def pivot(self, index, columns, values, aggfunc):
+    def pivot(self, index, columns, values, aggfunc="mean", other_df=None):
         """
         Define the lists of columns to be used as index, columns and values respectively,
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
         (see pivot_table in pandas documentation)
         """
+        if other_df:
+            self.dataframes[other_df] = pd.pivot_table(
+                self.dataframes[other_df],
+                index=index,
+                values=values,
+                columns=columns,
+                aggfunc=aggfunc,
+            ).reset_index()
+            return self.dataframes[other_df]
+
         return pd.pivot_table(
             self.df_, index=index, values=values, columns=columns, aggfunc=aggfunc
         ).reset_index()
 
     @timing
-    def unpivot(self, columns, var_name, val_name):
+    def unpivot(self, columns, var_name=None, val_name=None, other_df=None):
         """
         Define the list of columns to be used as values for the variable column,
         the name for variable columns and the one for value column_name
         """
+        if other_df:
+            self.dataframes[other_df] = pd.melt(
+                self.dataframes[other_df],
+                id_vars=list(
+                    set(list(self.dataframes[other_df].columns.values)) - set(columns)
+                ),
+                value_vars=columns,
+                var_name=var_name,
+                value_name=val_name,
+            )
+            return self.dataframes[other_df]
+
         self.df_ = pd.melt(
             self.df_,
             id_vars=list(set(list(self.df_.columns.values)) - set(columns)),
@@ -443,7 +464,7 @@ class PandasBench(AbstractAlgorithm):
         Columns is a list of column names
         """
         if columns == "all":
-            columns = self.get_columns()
+            columns = self.df_.columns
         self.df_.dropna(subset=columns, inplace=True)
         return self.df_
 
@@ -500,6 +521,28 @@ class PandasBench(AbstractAlgorithm):
         return self.df_
 
     @timing
+    def calc_scalar(self, name, f, columns=[], filter=None, use_scalars=False):
+        """
+        Apply the provided function to the dataframe
+        """
+        scalar = self.df_.copy()
+        if use_scalars:
+            scalar = eval(f)
+            return scalar
+
+        if filter:
+            scalar = scalar[eval(filter)]
+        if columns:
+            scalar = scalar[columns]
+
+        if type(f) == str:
+            f = eval(f)
+
+        scalar = scalar.apply(f)
+        self.scalars[name] = scalar.values[0]
+        return scalar
+
+    @timing
     def calc_column(self, col_name, f, columns=None, apply=False):
         """
         Calculate the new column col_name by applying
@@ -507,7 +550,7 @@ class PandasBench(AbstractAlgorithm):
         """
         if not columns:
             columns = self.df_.columns
-        if apply:
+        if not apply:
             if type(f) == str:
                 f = eval(f)
             self.df_[col_name] = self.df_[columns].apply(f, axis=1)
@@ -532,14 +575,23 @@ class PandasBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def groupby(self, columns, f, cast=None):
+    def groupby(
+        self,
+        columns,
+        f,
+        cast=None,
+        inplace=False,
+        filter=None,
+        new_df=None,
+        no_multidx=False,
+    ):
         """
         Aggregate the dataframe by the provided columns
         then applies the specified function f on every group.
         The function f can be a string representing a pandas DataFrameGroupBy method with arguments.
         """
         # Define the allowed aggregation methods and their corresponding functions
-        if type(f)==str:
+        if type(f) == str:
             allowed_methods = {
                 "cummin": lambda x: x.cummin(),
                 "cummax": lambda x: x.cummax(),
@@ -551,6 +603,7 @@ class PandasBench(AbstractAlgorithm):
                 "quantile": lambda x: x.quantile(),
                 "mean": lambda x, **kwargs: x.mean(**kwargs),
                 "count": lambda x, **kwargs: x.count(),
+                "sum": lambda x, **kwargs: x.sum(),
             }
 
             # Parse the function name and arguments
@@ -568,16 +621,30 @@ class PandasBench(AbstractAlgorithm):
             # Perform the groupby operation
             grouped = self.df_.groupby(columns)
 
-            # Apply the specified function with arguments if provided
+            if filter:
+                grouped = grouped.filter(eval(filter))
+
             if args_str:
-                # Evaluate the arguments to create a dictionary of keyword arguments
                 kwargs = eval("dict" + args_str)
                 result = grouped.apply(lambda x: method_func(x, **kwargs))
             else:
-                # No arguments provided, apply the function directly
                 result = grouped.apply(method_func)
-        elif type(f)==dict:
+        elif type(f) == dict:
             result = self.df_.groupby(columns).agg(f)
+
+        if new_df:
+            if no_multidx:
+                self.dataframes[new_df] = result.reset_index()
+            else:
+                self.dataframes[new_df] = result.unstack().reset_index()
+            return self.dataframes[new_df]
+
+        if inplace:
+            self.df_ = result.unstack().reset_index()
+            self.df_.columns = [
+                "_".join(col_name).rstrip("_") for col_name in self.df_.columns
+            ]
+            return self.df_
 
         return result
 
