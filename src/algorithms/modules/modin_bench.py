@@ -9,6 +9,8 @@ from src.algorithms.utils import timing
 from src.datasets.dataset import Dataset
 from src.algorithms.algorithm import AbstractAlgorithm
 from haversine import haversine
+import numpy as np
+
 
 class ModinBench(AbstractAlgorithm):
     df_: Union[pd.DataFrame, Series]
@@ -22,6 +24,7 @@ class ModinBench(AbstractAlgorithm):
         self.pipeline = pipeline
         self.name = f"{self.name}_{type}"
         self.type = type
+        self.dataframes = {}
 
         import modin.config as cfg
         import math
@@ -32,10 +35,18 @@ class ModinBench(AbstractAlgorithm):
             import modin.experimental.pandas as pd
 
         else:
+            # cfg.Engine.put(self.type)
+            # cfg.NPartitions.put(int(math.sqrt(cpu)))
             if self.type == "ray":
                 import ray
-                ray.init(object_store_memory=(self.mem_/3)*1024*1024*1024, num_cpus=self.cpu_, ignore_reinit_error=True)
+
+                ray.init(
+                    object_store_memory=(self.mem_) * 1024 * 1024 * 1024,
+                    num_cpus=self.cpu_,
+                    ignore_reinit_error=True,
+                )
                 import os
+
                 os.environ["MODIN_ENGINE"] = "ray"
                 os.environ["RAY_SCHEDULER_EVENTS"] = "0"
                 os.environ["RAY_DEDUP_LOGS"] = "0"
@@ -45,16 +56,15 @@ class ModinBench(AbstractAlgorithm):
                 import os
 
                 os.environ["MODIN_ENGINE"] = "dask"
-                
                 import distributed
                 from distributed import Client, LocalCluster
 
                 # start a local Dask client
-                print( distributed.client._get_global_client())
-                mem_per_worker = self.mem_ / self.cpu_*4
-                self.client = distributed.client._get_global_client() or Client(memory_limit=f'{self.mem_//4}GB')
-                
-                # silence all ERROR logs
+                mem_per_worker = self.mem_ / self.cpu_ * 4
+                self.client = distributed.client._get_global_client() or Client(
+                    memory_limit=f"{self.mem_//4}GB"
+                )
+
                 import logging
 
                 logging.getLogger("distributed.utils_perf").setLevel(logging.ERROR)
@@ -64,7 +74,7 @@ class ModinBench(AbstractAlgorithm):
         Creates a backup copy of the current dataframe
         """
         self.backup_ = self.df_.copy(deep=True)
-        
+
     def restore(self):
         """
         Replace the internal dataframe with the backup
@@ -171,7 +181,6 @@ class ModinBench(AbstractAlgorithm):
             )
             columns = (columns[0],)
         self.df_ = self.df_.sort_values(by=columns, ascending=ascending)
-        return self.df_
 
     @timing
     def get_columns(self):
@@ -243,7 +252,7 @@ class ModinBench(AbstractAlgorithm):
         Columns is a list of column names
         """
         dummies = pd.get_dummies(self.df_[columns])
-        self.df_ = pd.concat([self.df_.drop(columns=columns), dummies], axis=1)
+        self.df_ = pd.concat([self.df_, dummies], axis=1)
         return self.df_
 
     @timing
@@ -277,20 +286,15 @@ class ModinBench(AbstractAlgorithm):
         in the provided column lower or higher than the values
         of the lower/upper quantile.
         """
+
         if column == "all":
-            column = [c for c in self.df_.columns if self.df_[c].dtype == "float64"]
-        import numpy as np
+            column = self.df_.select_dtypes(include=np.number).columns.tolist()
 
-        # Calculate the percentile values for each column
-        percentiles = np.percentile(
-            self.df_[column].values,
-            [(lower_quantile * 100), (upper_quantile * 100)],
-            axis=0,
-        )
+        # Calculate the quantile values
+        lower, upper = self.df_[column].quantile([lower_quantile, upper_quantile])
 
-        # Create boolean masks for values lower and higher than the quantile values
-        lower_mask = (self.df_[column] < percentiles[0]).any(axis=1)
-        upper_mask = (self.df_[column] > percentiles[1]).any(axis=1)
+        lower_mask = self.df_[column] < lower
+        upper_mask = self.df_[column] > upper
 
         return self.df_[lower_mask | upper_mask]
 
@@ -443,22 +447,44 @@ class ModinBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def pivot(self, index, columns, values, aggfunc):
+    def pivot(self, index, columns, values, aggfunc="mean", other_df=None):
         """
         Define the lists of columns to be used as index, columns and values respectively,
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
         (see pivot_table in pandas documentation)
         """
+        if other_df:
+            self.dataframes[other_df] = pd.pivot_table(
+                self.dataframes[other_df],
+                index=index,
+                values=values,
+                columns=columns,
+                aggfunc=aggfunc,
+            ).reset_index()
+            return self.dataframes[other_df]
+
         return pd.pivot_table(
             self.df_, index=index, values=values, columns=columns, aggfunc=aggfunc
         ).reset_index()
 
     @timing
-    def unpivot(self, columns, var_name, val_name):
+    def unpivot(self, columns, var_name=None, val_name=None, other_df=None):
         """
         Define the list of columns to be used as values for the variable column,
         the name for variable columns and the one for value column_name
         """
+        if other_df:
+            self.dataframes[other_df] = pd.melt(
+                self.dataframes[other_df],
+                id_vars=list(
+                    set(list(self.dataframes[other_df].columns.values)) - set(columns)
+                ),
+                value_vars=columns,
+                var_name=var_name,
+                value_name=val_name,
+            )
+            return self.dataframes[other_df]
+
         self.df_ = pd.melt(
             self.df_,
             id_vars=list(set(list(self.df_.columns.values)) - set(columns)),
@@ -539,13 +565,15 @@ class ModinBench(AbstractAlgorithm):
         """
         if not columns:
             columns = self.df_.columns
-        if apply:
+        if not apply:
             if type(f) == str:
                 f = eval(f)
             self.df_[col_name] = self.df_[columns].apply(f, axis=1)
         else:
             if type(f) == str:
+                # f = eval(f)
                 self.df_[col_name] = eval(f)
+        # self.df_[col_name] = self.df_[columns].apply(f, axis=1)
         return self.df_
 
     @timing
@@ -564,14 +592,23 @@ class ModinBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def groupby(self, columns, f, cast=None):
+    def groupby(
+        self,
+        columns,
+        f,
+        cast=None,
+        inplace=False,
+        filter=None,
+        new_df=None,
+        no_multidx=False,
+    ):
         """
         Aggregate the dataframe by the provided columns
         then applies the specified function f on every group.
         The function f can be a string representing a pandas DataFrameGroupBy method with arguments.
         """
         # Define the allowed aggregation methods and their corresponding functions
-        if type(f)==str:
+        if type(f) == str:
             allowed_methods = {
                 "cummin": lambda x: x.cummin(),
                 "cummax": lambda x: x.cummax(),
@@ -583,6 +620,7 @@ class ModinBench(AbstractAlgorithm):
                 "quantile": lambda x: x.quantile(),
                 "mean": lambda x, **kwargs: x.mean(**kwargs),
                 "count": lambda x, **kwargs: x.count(),
+                "sum": lambda x, **kwargs: x.sum(),
             }
 
             # Parse the function name and arguments
@@ -607,9 +645,23 @@ class ModinBench(AbstractAlgorithm):
                 result = grouped.apply(lambda x: method_func(x, **kwargs))
             else:
                 # No arguments provided, apply the function directly
-                result = grouped.apply(method_func)
-        elif type(f)==dict:
+                result = grouped.agg(method_func)
+        elif type(f) == dict:
             result = self.df_.groupby(columns).agg(f)
+
+        if new_df:
+            if no_multidx:
+                self.dataframes[new_df] = result.reset_index()
+            else:
+                self.dataframes[new_df] = result.unstack().reset_index()
+            return self.dataframes[new_df]
+
+        if inplace:
+            self.df_ = result.unstack().reset_index()
+            self.df_.columns = [
+                "_".join(col_name).rstrip("_") for col_name in self.df_.columns
+            ]
+            return self.df_
 
         return result
 
@@ -622,8 +674,8 @@ class ModinBench(AbstractAlgorithm):
         for column in columns:
             self.df_[column] = pd.Categorical(self.df_[column])
             codes = self.df_[column].cat.categories
-            self.df_[column] = codes
-                    
+            self.df_[column] = self.df_[column].cat.codes
+
         return self.df_
 
     @timing
@@ -704,8 +756,7 @@ class ModinBench(AbstractAlgorithm):
         Return a list of duplicate columns, if exists.
         Duplicate columns are those which have same values for each row.
         """
-        # NOTA: a differenza di pandas, considera anche il nome delle colonne nel confronto
-        # e non solo i valori!
+
         cols = self.df_.columns.values
         return [
             (cols[i], cols[j])
@@ -746,9 +797,7 @@ class ModinBench(AbstractAlgorithm):
         pass
 
     def done(self):
-       pass
-
-
+        pass
 
     def set_construtor_args(self, args):
         pass
