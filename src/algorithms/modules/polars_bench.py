@@ -7,6 +7,7 @@ import pandas as pd
 import polars as pl
 from src.algorithms.utils import timing
 from src.datasets.dataset import Dataset
+import numpy as np
 
 from src.algorithms.algorithm import AbstractAlgorithm
 
@@ -15,12 +16,14 @@ class PolarsBench(AbstractAlgorithm):
     df_: Union[pl.DataFrame, pl.Series, pl.LazyFrame] = None
     backup_: Union[pl.DataFrame, pl.Series, pl.LazyFrame] = None
     ds_: Dataset = None
+    ds_: Dataset = None
     name = "polars"
 
     def __init__(self, mem: str = None, cpu: int = None, pipeline: bool = False):
         self.mem_ = mem
         self.cpu_ = cpu
         self.pipeline = pipeline
+        self.dataframes = {}
 
     def backup(self):
         """
@@ -233,13 +236,9 @@ class PolarsBench(AbstractAlgorithm):
         Columns is a list of column names
         :param columns columns to encode
         """
-        for c in columns:
-            # get unique values
-            unique_values = self.df_.select(c).unique().collect()[c]
-            for v in unique_values:
-                self.df_ = self.df_.with_columns(
-                    pl.when(pl.col(c) == v).then(1).otherwise(0).alias(c + "_" + str(v))
-                ).lazy()
+        tmp = self.df_.select(pl.col(*columns)).collect()
+        self.df_ = self.df_.collect().to_dummies(columns)
+        self.df_ = pl.concat([self.df_, tmp], how="horizontal").lazy()
         return self.df_
 
     @timing
@@ -276,6 +275,8 @@ class PolarsBench(AbstractAlgorithm):
         numeric = self.df_.collect()
         if column == "all":
             column = [c for c in numeric.columns if numeric[c].dtype != "str"]
+        if column == "all":
+            column = [c for c in numeric.columns if numeric[c].dtype != "str"]
 
         lower_quantileDF = numeric[column].quantile(lower_quantile, "linear")
         upper_quantileDF = numeric[column].quantile(upper_quantile, "linear")
@@ -307,6 +308,7 @@ class PolarsBench(AbstractAlgorithm):
             if dtypes[c] == "str":
                 self.df_ = self.df_.with_columns(pl.col(c).map(str))
             elif dtypes[c] in [pl.Date, pl.Datetime, pl.Time]:
+
                 self.df_ = self.df_.with_columns(
                     pl.col(c).str.strptime(dtypes[c], strict=False).keep_name()
                 )
@@ -324,7 +326,7 @@ class PolarsBench(AbstractAlgorithm):
         Only for numeric columns.
         Min value, max value, average value, standard deviation, and standard quantiles.
         """
-        return self.df_.describe()
+        return self.df_.collect().describe()
 
     @timing
     def find_mismatched_dtypes(self):
@@ -387,18 +389,15 @@ class PolarsBench(AbstractAlgorithm):
         :param format datetime formatting string
         """
         if str(self.df_.select(column).dtypes[0]) in {
-            "String",
+            "string",
             "object",
             "str",
+            "String",
             "Utf8",
         }:
-            if is_time:
-                # ADD FAKE DATE TO TIME
-                self.df_ = self.df_.with_columns("2024-01-01 " + pl.col(column))
-
             self.df_ = self.df_.with_columns(
                 pl.col(column)
-                .str.strptime(pl.Date, format=format, strict=False)
+                .str.to_datetime(format=format, strict=False, exact=False)
                 .keep_name()
             )
         else:
@@ -453,7 +452,7 @@ class PolarsBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def pivot(self, index, columns, values, aggfunc):
+    def pivot(self, index, columns, values, aggfunc="mean", other_df=None):
         """
         Define the lists of columns to be used as index, columns and values respectively,
         and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
@@ -464,6 +463,20 @@ class PolarsBench(AbstractAlgorithm):
         :param aggfunc dictionary to aggregate ("sum", "mean", "count") the values for each column
                {"col1": "sum"}
         """
+        if other_df is not None:
+            self.dataframes[other_df] = (
+                self.df_.collect()
+                .pivot(
+                    index=index,
+                    columns=columns,
+                    values=values,
+                    aggregate_function=aggfunc,
+                    maintain_order=True,
+                )
+                .lazy()
+            )
+            return self.dataframes[other_df]
+
         return self.df_.collect().pivot(
             index=index,
             columns=columns,
@@ -473,19 +486,19 @@ class PolarsBench(AbstractAlgorithm):
         )
 
     @timing
-    def unpivot(self, columns, var_name, val_name):
+    def unpivot(self, columns, var_name=None, val_name=None, other_df=None):
         """
         Define the list of columns to be used as values for the variable column,
         the name for variable columns and the one for value column_name
         """
-        self.df_ = (
-            self.df_.melt(
+        if other_df is not None:
+            self.dataframes[other_df] = self.df_.melt(
                 id_vars=list(set(self.df_.columns) - set(columns)), value_vars=columns
             )
-            .with_column_renamed("variable", var_name)
-            .with_column_renamed("value", val_name)
+
+        return self.df_.melt(
+            id_vars=list(set(self.df_.columns) - set(columns)), value_vars=columns
         )
-        return self.df_
 
     @timing
     def delete_empty_rows(self, columns):
@@ -578,7 +591,7 @@ class PolarsBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def calc_column(self, col_name, columns, f, return_dtype="", apply=False):
+    def calc_column(self, col_name, columns, f, return_dtype=None, apply=False):
         """
         Calculate the new column col_name by applying
         the function f to the whole dataframe.
@@ -587,18 +600,16 @@ class PolarsBench(AbstractAlgorithm):
                  e.g. to sum two columns
                  pl.map(["col1", "col2"], lambda x: x[0] + x[1])
         """
-        if (type(f) == str) and apply:
-            print(f)
-            f = eval(f)
-            print(f)
-            self.df_ = self.df_.with_columns(
-                pl.struct(columns)
-                .apply(f, return_dtype=eval(return_dtype))
-                .alias(col_name)
-            )
-        elif not apply:
-
+        if apply:
             self.df_ = eval(f)
+            return self.df_
+        else:
+            if isinstance(f, str):
+                f = eval(f)
+
+        self.df_ = self.df_.with_columns(
+            pl.struct(columns).apply(f, return_dtype=eval(return_dtype)).alias(col_name)
+        )
         return self.df_
 
     @timing
@@ -620,10 +631,12 @@ class PolarsBench(AbstractAlgorithm):
         self.df_ = self.df_.join(
             other, left_on=left_on, right_on=right_on, how=how, **kwargs
         )
-        return self.df_
+        return self.df_.collect()
 
     @timing
-    def groupby(self, columns, f):
+    def groupby(
+        self, columns, f, inplace=False, filter=None, new_df=None, no_multidx=False
+    ):
         """
         Aggregate the dataframe by the provided columns
         then applies the function f on every group
@@ -631,7 +644,40 @@ class PolarsBench(AbstractAlgorithm):
         :param columns columns to use for group by
         :param f aggregation function
         """
-        return self.df_.groupby(columns).agg(f)
+        print(self.df_.columns)
+        if isinstance(f, str):
+            f = eval(f)
+            grouped = self.df_.group_by(columns).agg(f)
+
+        if isinstance(f, dict):
+            for k, v in f.items():
+                if k in columns:
+                    # pivot
+
+                    agg = self.df_.group_by(columns).agg(
+                        eval(f'pl.col("{k}").{v}()').alias(f"{k}_{v}")
+                    )
+                    columns = list(set(columns) - set([k]))
+                    values = f"{k}_{v}"
+                    grouped = agg.collect().pivot(
+                        columns=k,
+                        index=columns,
+                        aggregate_function="sum",
+                        values=values,
+                    )
+                else:
+                    func = f'pl.col("{k}").{v}()'
+                    func = eval(func)
+                    grouped = self.df_.group_by(columns).agg(func)
+
+        if new_df is not None:
+            self.dataframes[new_df] = grouped.lazy()
+            return self.dataframes[new_df]
+        if inplace:
+            self.df_ = grouped.lazy()
+            return self.df_
+
+        return grouped
 
     @timing
     def categorical_encoding(self, columns):
@@ -643,6 +689,10 @@ class PolarsBench(AbstractAlgorithm):
         :param columns columns to encode
         """
         for c in columns:
+            self.df_ = self.df_.with_columns(
+                [pl.col(c).cast(pl.Categorical).cat.set_ordering("physical")]
+            )
+
             self.df_ = self.df_.with_columns(
                 [pl.col(c).cast(pl.Categorical).cat.set_ordering("physical")]
             )
@@ -704,11 +754,10 @@ class PolarsBench(AbstractAlgorithm):
                         to_replace, value, return_dtype=eval(return_dtype)
                     )
                 )
-
         return self.df_
 
     @timing
-    def edit(self, columns, func):
+    def edit(self, columns, func, return_dtype="pl.Float64"):
         """
         Edit the values of the cells in the provided columns using the provided expression
         Columns is a list of column names
@@ -716,10 +765,13 @@ class PolarsBench(AbstractAlgorithm):
         :param columns columns on which apply this method
         :param func function to apply
         """
+        if isinstance(func, str):
+            return_dtype = eval(return_dtype)
+
         func = eval(func)
         for c in columns:
             self.df_ = self.df_.with_columns(
-                [pl.col(c).apply(func, return_dtype=pl.Float64)]
+                [pl.col(c).apply(func, return_dtype=return_dtype)]
             )
         return self.df_
 
@@ -795,7 +847,7 @@ class PolarsBench(AbstractAlgorithm):
         :param path path on which store the parquet
         :param kwargs extra parameters
         """
-        self.df_.collect().write_parquet(path, **kwargs)
+        self.df_.collect().write_parquet(path, use_pyarrow=True, **kwargs)
 
     @timing
     def query(self, query, inplace=False):
@@ -811,7 +863,8 @@ class PolarsBench(AbstractAlgorithm):
         return self.df_.filter(query)
 
     def force_execution(self):
-        self.df_.collect()
+        print("Forcing")
+        return self.df_.collect()
 
     @timing
     def done(self):
