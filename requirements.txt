@@ -1,5 +1,5 @@
 haversine==2.8.1
-pandas==2.2.2
+pandas==2.2.1
 numpy==1.26.4
 docker==7.0.0
 ansicolors==1.1.8
@@ -11,4 +11,6 @@ ray==2.10.0
 grpcio==1.62.1
 vaex==4.17.0
 datatable==1.1.0
+polars==0.20.23
+modin==0.29.0
 memory-profiler==0.61.0
