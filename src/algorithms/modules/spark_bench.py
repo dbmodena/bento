@@ -78,7 +78,7 @@ class SparkBench(AbstractAlgorithm):
             SparkSession.builder.appName(app_name).config(conf=self.c).getOrCreate()
         )
 
-    def force_execution(self):
+  def force_execution(self):
         """
         Forces the execution of lazy methods
         """
@@ -144,13 +144,8 @@ class SparkBench(AbstractAlgorithm):
         self.df_ = self.sparkSession.read.json(path)
         return self.df_
 
-    def read_csv(self, path, **kwargs):
-        # Use Dict for sparkSession and pass it parameters sparkSession=sc.sparkSession
-        # two parameter File of CSV path and the Session address
-        # Return DataFrame for the CSV File
-        self.df_ = self.sparkSession.read.csv(
-            path, header=True, inferSchema=True
-        )  # Initiate the dataFrame
+    def read_csv(self, path, sep=",", **kwargs):
+        self.df_ = self.sparkSession.read.csv(path, **kwargs)
         return self.df_
 
     def read_xml(self, path, **kwargs):
@@ -211,6 +206,7 @@ class SparkBench(AbstractAlgorithm):
         # it uses JDBC drivers;
         # user is the DB admin User name and password as Dict: User='UseName', Password= password
         # Query is SQL query e.g select * from db_name.tablename
+
         self.df_ = (
             self.sparkSession.read.format("jdbc")
             .option("url", f"jdbc:mysql://{conn}")
@@ -325,7 +321,9 @@ class SparkBench(AbstractAlgorithm):
 
         collected_df = self.df_
         for c in columns:
-            stringIndexer = StringIndexer(inputCol=c, outputCol=f"{c}_index")
+            stringIndexer = StringIndexer(
+                inputCol=c, outputCol=f"{c}_index", handleInvalid="skip"
+            )
             model = stringIndexer.fit(collected_df)
             indexed = model.transform(collected_df)
             encoder = OneHotEncoder(
@@ -344,7 +342,6 @@ class SparkBench(AbstractAlgorithm):
             self.df_ = self.delete_columns(
                 [f"{c}_index", f"{c}_onehot", f"{c}_col_onehot"]
             )
-
         return self.df_
 
     @timing
@@ -421,6 +418,7 @@ class SparkBench(AbstractAlgorithm):
         For example  {'col_name': 'int8'}
         """
         for c in dtypes:
+            # t = eval(dtypes[c])
             self.df_ = self.df_.withColumn(c, self.df_[c].cast(dtypes[c]))
         return self.df_
 
@@ -489,9 +487,8 @@ class SparkBench(AbstractAlgorithm):
         """
         Drop duplicate rows.
         """
-        return self.df_.groupBy(self.get_columns()).agg(
-            *[fn.first(c).alias(c) for c in self.df_.columns]
-        )
+        self.df_ = self.df_.dropDuplicates()
+        return self.df_
 
     @timing
     def drop_by_pattern(self, column, pattern):
@@ -572,7 +569,7 @@ class SparkBench(AbstractAlgorithm):
         return self.df_
 
     @timing
-    def pivot(self, index, columns, values, aggfunc):
+    def pivot(self, index, columns, values, aggfunc="mean", other_df=None):
         """
             @timing
         define the lists of columns to be used as index, columns and values respectively,
@@ -584,7 +581,10 @@ class SparkBench(AbstractAlgorithm):
             :param aggfunc dictionary to aggregate ("sum", "mean", "count") the values for each column
                    {"col1": "sum"}
         """
-        df_copy = self.df_.select("*")
+        if other_df:
+            df_copy = self.dataframes[other_df].select("*")
+        else:
+            df_copy = self.df_.select("*")
         agg_dict = {c: aggfunc for c in values}
         for c in values:
             df_copy = df_copy.join(
@@ -595,23 +595,29 @@ class SparkBench(AbstractAlgorithm):
                 on=index,
                 how="left",
             )
+
+        if other_df:
+            self.dataframes[other_df] = df_copy
+
         return df_copy
 
     @timing
-    def unpivot(self, columns, var_name, val_name):
+    def unpivot(self, columns, var_name, val_name, other_df=None):
         """
             @timing
         define the list of columns to be used as values for the variable column,
             the name for variable columns and the one for value column_name
         """
+
         op = []
         for c in columns:
             op.extend((f"'{str(c)}'", c))
         q = list(set(list(self.df_.columns)) - set(columns))
         op = ", ".join(op)
         q.append(fn.expr(f"stack({len(columns)}, {op}) as ({var_name}, {val_name})"))
-        self.df_ = self.df_.select(list(q))
-        return self.df_
+        if other_df:
+            self.dataframes[other_df] = self.df_.select(q)
+        return self.df_.select(list(q))
 
     @timing
     def delete_empty_rows(self, columns):
@@ -622,8 +628,11 @@ class SparkBench(AbstractAlgorithm):
         :param columns columns to check
         """
         if columns == "all":
-            columns = self.df_.columns
+            self.df_ = self.df_.dropna()
+
+            return self.df_
         self.df_ = self.df_.na.drop(subset=columns)
+        return self.df_
 
     @timing
     def split(self, column, sep, splits, col_names):
@@ -714,13 +723,13 @@ class SparkBench(AbstractAlgorithm):
         :param col_name column on which apply the function
         :param f function to apply, must be an expression, eg. A+1
         """
-        # print schema
-        if (type(f) == str) and apply:
+        if apply:
+            self.df_ = eval(f)
+        elif type(f) == str:
             udf_lambda = fn.udf(eval(f), StringType())
             new_col_expr = udf_lambda(*[fn.col(col_name) for col_name in columns])
             self.df_ = self.df_.withColumn(col_name, new_col_expr)
-        elif not apply:
-            self.df_ = eval(f)
+
         return self.df_
 
     @timing
@@ -755,9 +764,11 @@ class SparkBench(AbstractAlgorithm):
         other.unpersist()
 
         return self.df_
-    
+
     @timing
-    def groupby(self, columns, f, cast=None):
+    def groupby(
+        self, columns, f, cast=None, inplace=False, new_df=None, no_multidx=False
+    ):
         """
         Aggregate the dataframe by the provided columns
         then applies the function f on every group
@@ -784,9 +795,31 @@ class SparkBench(AbstractAlgorithm):
                     agg_exprs.append(getattr(fn, f)(col).alias(f"{col}_{func}"))
                 else:
                     agg_exprs.append(func(col).alias(f"{col}_{func.__name__}"))
+            df_copy = self.df_.groupBy(*columns).agg(*agg_exprs)
 
-        return self.df_.groupBy(*columns).agg(*agg_exprs)
-    
+        if new_df is not None:
+            self.dataframes[new_df] = df_copy
+            return self.dataframes[new_df]
+
+        if inplace:
+            agg_column = list(f.keys())[0]
+            if agg_column in columns:
+                agg_column = list(f.keys())[0]
+                columns_group = list(set(columns) - set([agg_column]))
+                agg_col_values = [
+                    i[0] for i in df_copy.select(agg_column).distinct().collect()
+                ]
+                # remove nan values
+                agg_col_values = [i for i in agg_col_values if i is not None]
+                df_copy = (
+                    df_copy.groupBy(*columns_group)
+                    .pivot(agg_column, agg_col_values)
+                    .agg(fn.sum(f"{agg_column}_{func.__name__}"))
+                )
+
+            self.df_ = df_copy
+            return self.df_
+
     @timing
     def categorical_encoding(self, columns):
         """
@@ -966,7 +999,7 @@ class SparkBench(AbstractAlgorithm):
         self.df_.coalesce(1).write.mode("overwrite").save(
             path, format="csv", header=True
         )
-        
+
     @timing
     def query(self, query, inplace=False):
         """
@@ -975,6 +1008,7 @@ class SparkBench(AbstractAlgorithm):
         :param query: a string with the query conditions, e.g. "col1 > 1 & col2 < 10"
         :return: subset of the dataframe that correspond to the selection conditions
         """
+
         if type(query) == str:
             query = eval(query)
 
