@@ -10,7 +10,6 @@ import colors
 import threading
 import traceback
 from src.algorithms.algorithm import AbstractAlgorithm
-from memory_profiler import profile
 
 from src.algorithms.algorithms_factory import AlgorithmsFactory
 from src.datasets.dataset import Dataset
@@ -259,44 +258,26 @@ def run_pipeline_locally(
 
     elif step:
         process = psutil.Process(os.getpid())
-        # Get initial CPU usage
         initial_cpu_percent = psutil.cpu_percent()
-        # get the initial memory usage
-
-        # Start tracking memory usage
         resource.setrlimit(
             resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
         )
         memory_used_s = psutil.virtual_memory().used
         before_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        # print(before_memory // 1024**3)
         ram = 0
         tracemalloc.start()
 
         for key, tests in pipeline_step.items():
             print("Running pipeline step: ", key)
-            # execute_methods(tests, ds, algo)
             start_time = time.time()
-            # Start tracking memory usage
-
-            # Call the function
             execute_methods(tests, ds, algo, step)
-            # get the final memory usage
             tracemalloc.stop()
             ram = max(((tracemalloc.get_traced_memory()[1])), 0)
             after_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-
-            # print(after_memory // 1024**3)
-            # Get final CPU usage
             final_cpu_percent = psutil.cpu_percent()
-
-            # Stop the stopwatch and calculate the elapsed time
             end_time = time.time()
             elapsed_time = end_time - start_time
 
-            # Print results
-
-            # Stop tracking memory usage and get the memory usage
             memory_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 
             memory_used_e = psutil.virtual_memory().used
@@ -308,7 +289,6 @@ def run_pipeline_locally(
         print("Running core functions")
         for key, tests in pipeline_step.items():
             execute_methods(tests, ds, algo, step)
-    
-    #algo.builder.stop()
+
     del algo
-    print('Deleted')
+    print("Deleted")
