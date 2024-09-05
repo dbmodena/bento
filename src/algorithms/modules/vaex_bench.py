@@ -1,61 +1,75 @@
-from calendar import c
+from ast import arguments
 import datetime
-import decimal
-from unicodedata import name, numeric
-import warnings
-
-from polars import col
-
-warnings.filterwarnings('ignore')
-import re
-from typing import Union
-from haversine import haversine
+from operator import le
+from socket import if_indextoname
 import pandas as pd
-import datatable as dt
-from datatable import f as F
 import numpy as np
-import h5py
+import psutil
+
+import vaex as vx
+
+import vaex.ml
 from src.algorithms.utils import timing
 from src.datasets.dataset import Dataset
+from haversine import haversine
 from src.algorithms.algorithm import AbstractAlgorithm
 
 
-class DataTableBench(AbstractAlgorithm):
-    df_: Union[pd.DataFrame, pd.Series] = None
-    backup_: Union[pd.DataFrame, pd.Series] = None
-    ds_ : Dataset = None
-    #name = "pandas"
-    def __init__(self, name:str, mem: str = None, cpu: int = None, pipeline: bool = False):
+
+class VaexBench(AbstractAlgorithm):
+    df_: vx.dataframe.DataFrame = None
+    backup_: vx.dataframe.DataFrame = None
+    ds_: Dataset = None
+    name = "vaex"
+    pipeline = False
+    dataframes = {}
+
+    def __init__(self, mem: str = None, cpu: int = None, pipeline: bool = False):
         self.mem_ = mem
         self.cpu_ = cpu
         self.pipeline = pipeline
-        self.name = name
+        self.dataframes = {}
+        
+    def set_df(self, df):
+        """
+        Sets the internal dataframe
+        """
+        self.df_ = df
+        return self.df_
 
-    def backup(self):
+    def get_df(self):
         """
-        Creates a backup copy of the current dataframe
+        Returns the internal dataframe
         """
-        self.backup_ = self.df_.copy()
+        return self.df_
 
-    def restore(self):
+    def load_from_pandas(self, df):
         """
-        Replace the internal dataframe with the backup
+        Loads data from a pandas dataframe
         """
-        self.df_ = self.backup_.copy()
+        return self.set_df(vx.from_pandas(df))
 
     @timing
     def get_pandas_df(self):
         """
         Returns the internal dataframe as a pandas dataframe
         """
-        return self.df_.to_pandas()
+        return self.df_.to_pandas_df()
 
     @timing
-    def load_from_pandas(self, df):
+    def done(self):
         """
-        Loads data from a pandas dataframe
+        Called when the execution of the algorithm is done
         """
-        self.df_ = df
+        self.df_.execute()
+
+    def get_memory_usage(self):
+        """
+        Return the current memory usage of this algorithm instance
+        (in kilobytes), or None if this information is not available.
+        """
+        # return in kB for backwards compatibility
+        return psutil.Process().memory_info().rss / 1024
 
     @timing
     def load_dataset(self, ds: Dataset, conn=None, **kwargs):
@@ -65,102 +79,123 @@ class DataTableBench(AbstractAlgorithm):
         self.ds_ = ds
         path = ds.dataset_attribute.path
         format = ds.dataset_attribute.type
-        
+
         if format == "csv":
             self.df_ = self.read_csv(path, **kwargs)
         elif format == "excel":
             self.df_ = self.read_excel(path, **kwargs)
+        elif format == "hdf5":
+            self.df_ = self.read_hdf5(path, **kwargs)
         elif format == "json":
             self.df_ = self.read_json(path, **kwargs)
         elif format == "parquet":
             self.df_ = self.read_parquet(path, **kwargs)
         elif format == "sql":
             self.df_ = self.read_sql(path, conn, **kwargs)
-        elif format == "hdf5":
-            self.df_ = self.read_hdf5(path, **kwargs)
         elif format == "xml":
             self.df_ = self.read_xml(path, **kwargs)
-            
         return self.df_
+
+    def read_json(self, path, **kwargs):
+        """
+        :param path: path of the file to load
+        :param kwargs: extra arguments
+        Read a json file
+        """
+        return vx.from_json(path, **kwargs)
+
+    def read_csv(self, path, **kwargs):
+        """
+        Read a csv file
+        :param path: path of the file to load
+        :param kwargs: extra arguments
+        """
+        return vx.from_csv_arrow(path, **kwargs)
+
+    def read_xml(self, path, **kwargs):
+        """
+        Read a xml file
+        :param path: path of the file to load
+        :param kwargs: extra arguments
+        """
+        return self.load_from_pandas(pd.read_xml(path, **kwargs))
+
+    def read_excel(self, path, **kwargs):
+        """
+        Read an excel file
+        :param path: path of the file to load
+        :param kwargs: extra arguments
+        """
+        return self.load_from_pandas(pd.read_excel(path, **kwargs))
+
+    def read_parquet(self, path, **kwargs):
+        """
+        Read a parquet file
+        :param path: path of the file to load
+        :param kwargs: extra arguments
+        """
+        return vx.open(path, **kwargs)
+
+    def read_hdf5(self, path, **kwargs):
+        """
+        Read a hdf5 file
+        :param path: path of the file to load
+        :param kwargs: extra arguments
+        """
+        try:
+            return vx.open(path, **kwargs)
+        except:
+            print("Dataset is not column based, it will be opened using pandas api")
+            return vx.from_pandas(pd.read_hdf(path, **kwargs))
 
     def read_sql(self, query, conn, **kwargs):
         """
         Given a connection and a query
         creates a dataframe from the query output
+        :param query query to run to get the data
+        :param conn connection to a database
+        :param kwargs: extra arguments
         """
-        pass
-
-    def read_json(self, path, **kwargs):
-        """
-        Read a json file
-        """
-        pass
-
-    def read_csv(self, path, **kwargs):
-        """
-        Read a csv file
-        """
-        self.df_ = dt.fread(path, **kwargs)
-        return self.df_
-    
-    def read_hdf5(self, path, **kwargs):
-        """
-        Given a connection and a query
-        creates a dataframe from the query output
-        """
-        pass
-
-    def read_xml(self, path, **kwargs):
-        """
-        Read a xml file
-        """
-        pass
-
-    def read_excel(self, path, **kwargs):
-        """
-        Read an excel file
-        """
-        pass
-
-    def read_parquet(self, path, **kwargs):
-        """
-        Read a parquet file
-        """
-        self.df_ = dt.fread(path, **kwargs)
-        return self.df_
+        return self.load_from_pandas(pd.read_sql(query, conn, **kwargs))
 
     @timing
     def sort(self, columns, ascending=True):
         """
         Sort the dataframe by the provided columns
         Columns is a list of column names
+        :param columns columns to use for sorting
+        :param ascending if sets to False sorts in descending order (default True)
         """
-        self.df_ = self.df_.sort(columns)
+
+        self.df_ = self.df_.sort(columns, ascending=ascending)
+
         return self.df_
 
     @timing
     def get_columns(self):
         """
-        Return the name of the columns in the dataframe
+        Return a list containing the names of the columns in the dataframe
         """
-        return self.df_.names
+        return self.df_.get_column_names()
 
     @timing
     def is_unique(self, column):
         """
         Check the uniqueness of all values contained in the provided column_name
+        :param column column to check
         """
-        pass
+        return len(self.df_.unique(column)) == self.df_.length_original()
 
     @timing
     def delete_columns(self, columns):
         """
-        Delete the specified columns
+        Delete the provided columns
         Columns is a list of column names
+        :param columns columns to delete
         """
-        columns_not_drop = [c for c in self.df_.names if c not in columns]
-        self.df_ = self.df_[:, columns_not_drop]
-        
+
+        column_mantain = [c for c in self.get_columns() if c not in columns]
+        self.df_ = self.df_[column_mantain]
         return self.df_
 
     @timing
@@ -168,10 +203,15 @@ class DataTableBench(AbstractAlgorithm):
         """
         Rename the provided columns using the provided names
         Columns is a dictionary: {"column_name": "new_name"}
+        :param columns a dictionary that contains for each column to rename the new name
         """
-        for c, n in columns.items():
-            self.df_[n] = self.df_[:, c]
-            self.df_ = self.df_[:, [x for x in self.df_.names if x != c]]
+
+        assert (
+            type(columns) == dict
+        ), 'Columns parameter must be a dict, formatted as {"column_name": "new_name"}'
+
+        for el in columns.items():
+            self.df_.rename(el[0], el[1])
         return self.df_
 
     @timing
@@ -179,47 +219,51 @@ class DataTableBench(AbstractAlgorithm):
         """
         Create a new column with the provided name combining the two provided columns using the provided separator
         Columns is a list of two column names; separator and name are strings
+        :param columns columns to merge
+        :param separator separator to use
+        :param name new column name
         """
-        pass
+
+        assert len(columns) == 2, "Merge is possible only with two columns"
+
+        if type(columns) == str:
+            columns = [columns]
+
+        self.df_[name] = (
+            self.df_[columns[0]].astype(str)
+            + separator
+            + self.df_[columns[1]].astype(str)
+        )
+        return self.df_
 
     @timing
     def fill_nan(self, value, columns=None, func=False):
         """
         Fill nan values in the dataframe with the provided value
-        :param value value to use for replacing null values
-        :columns columns to fill, if empty all the dataframe is filled
+        :param value: value to use for replacing null values
+        :param columns: columns to fill, if empty all the dataframe is filled
         """
-        
-        
+        if columns is None:
+            columns = self.get_columns()
+
         if func:
             value = eval(value)
 
-        if columns is None:
-            columns = []
-
-        if type(columns) == str:
-            columns = [columns]
-
-        for c in columns:
-            self.df_[c] = dt.ifelse(dt.isna(dt.f[c]), value, dt.f[c])
+        self.df_ = self.df_.fillna(value=value, column_names=columns)
         return self.df_
-
 
     @timing
     def one_hot_encoding(self, columns):
         """
         Performs one-hot encoding of the provided columns
         Columns is a list of column names
+        :param columns columns to encode
         """
-        # Iterate over each column to create one-hot encoding
-        for column in columns:
-            # Get the unique values in the column
-            unique_values = dt.unique(self.df_[column]).to_list()[0]
+        if type(columns) == str:
+            columns = [columns]
 
-            # iterate over each unique value to create a binary mask
-            for value in unique_values:
-                self.df_[f"{column}_{value}"] = dt.ifelse(dt.f[column] == value, 1, 0)
-
+        one_hot_encoder = vaex.ml.OneHotEncoder(features=columns)    
+        self.df_ = one_hot_encoder.fit_transform(self.df_)
         return self.df_
 
     @timing
@@ -227,84 +271,76 @@ class DataTableBench(AbstractAlgorithm):
         """
         Returns the rows of the dataframe which contains
         null value in the provided column.
+        :param column column to explore
         """
         if column == "all":
             column = self.get_columns()
 
-        return self.df_[:, dt.isna(dt.f[column])]
+        return self.df_[self.df_[column] != self.df_[column]]
 
     @timing
     def search_by_pattern(self, column, pattern):
         """
-        Returns the rows of the datatable which
+        Returns the rows of the dataframe which
         match with the provided pattern
         on the provided column.
         Pattern could be a regular expression.
+        :param column column to search on
+        :param pattern pattern to search, string or regex
         """
-        search = self.df_.copy()
-        try:
-            filtered = list(filter(lambda x: re.match(pattern, x), search[column].to_list()[0]))
-        except Exception:
-            print("not regex")
-            filtered = list(filter(lambda x: pattern in x if x else "", search[column].to_list()[0]))
-        if filtered:
-            return search[:, dt.f[column] == filtered]
-    
+        return self.df_[self.df_[column].str.contains(pattern)]
 
     @timing
-    def locate_outliers(self, column, lower_quantile=0.1, upper_quantile=0.99, **kwargs):
+    def locate_outliers(
+        self, column, lower_quantile=0.1, upper_quantile=0.99, **kwargs
+    ):
         """
         Returns the rows of the dataframe that have values
         in the provided column lower or higher than the values
         of the lower/upper quantile.
-        """       
+        :param column column to search on
+        :param lower_quantile lower quantile (default 0.1)
+        :param upper_quantile upper quantile (default 0.99)
+        """
         if column == "all":
-            column = self.df_.names
-        import numpy as np
-        cols = [
-            c
-            for c in column
-            if str(self.df_[c].types[0])
-            in {"Type.int32", "Type.int64", "Type.float32", "Type.float64"}
-        ]
-        filtered = self.df_[:, cols]
-        lower, upper = np.percentile(np.array(filtered), [(lower_quantile*100), (upper_quantile*100)], axis=0)
-        for c in cols:
-            filtered = filtered[dt.f[c] <= lower[0], :]
-            filtered = filtered[dt.f[c] >= upper[0], :]
-        return filtered
+            column = self.get_columns()
+        cols = [c for c in column if self.df_[c].dtype in ["int64", "float64"]]
+        q_low = self.df_.percentile_approx(cols, (lower_quantile * 100))
+        q_hi = self.df_.percentile_approx(cols, (upper_quantile * 100))
+        return self.df_.select((self.df_[column] < q_low.max()) | (self.df_[column] > q_hi.min()))
 
     @timing
     def get_columns_types(self):
         """
         Returns a dictionary with column types
         """
-        return self.df_.types
-
+        return self.df_.dtypes
 
     @timing
     def cast_columns_types(self, dtypes):
         """
         Cast the data types of the provided columns
         to the provided new data types.
-        dtypes is a dictionary that provide for each
+        dtypes is a dictionary that provides for each
         column to cast the new data type.
+        :param dtypes a dictionary that provides for ech column to cast the new datatype
+        For example  {'col_name': 'int8'}
         """
-        for column, dtype in dtypes.items():
-            if (str(dtype) != "str") and (column in self.df_.names):
-                if str(dtype) == "Type.time64":                
-                    try:
-                        self.df_ =  self.df_[:, dt.as_type(F.column, dtype)]
-                    except Exception:
-                        arr = [f'1970-01-01 {i}' for i in self.df_[column].to_list()[0]]
-                        arr = [datetime.datetime.strptime(i, '%Y-%m-%d %H:%M:%S') for i in arr]
-                        self.df_[column] = np.array(arr)
-                else:
-                    if self.df_[column].type != dtype:
-                        self.df_ = self.df_[:, dt.as_type(F.column, dtype)]
-                
-        return self.df_
 
+        assert (
+            type(dtypes) == dict
+        ), "dtypes parameter must be a dict, formatted like {'col_name': 'type'} "
+        for col, dtype in dtypes.items():
+            if dtype == "time32[s]":
+                self.df_[col] = self.df_[col].astype(str)
+                self.df_[col] = "1970-01-01 " + self.df_[col]
+                self.df_[col] = self.df_[col].astype("datetime64")
+
+            elif str(self.df_[col].dtype) == dtype:
+                continue
+            else:
+                self.df_[col] = self.df_[col].astype(dtype)
+        return self.df_
 
     @timing
     def get_stats(self):
@@ -313,18 +349,14 @@ class DataTableBench(AbstractAlgorithm):
         Only for numeric columns.
         Min value, max value, average value, standard deviation, and standard quantiles.
         """
-        
-        return {
-            "min": self.df_.min(),
-            "max": self.df_.max(),
-            "mean": self.df_.mean(),
-            "sd": self.df_.sd(),
-            "skew": self.df_.skew(),
-            "kurt": self.df_.kurt(),
-            "sum": self.df_.sum(),
-            "countna": self.df_.countna()
-        }
+        df_copy = self.df_.copy()
+        for c in self.get_columns():
+            if str(df_copy[c].dtype) in {"date32[day]", "time32[s]"}:
+                df_copy[c] = df_copy[c].astype(str)
 
+        return df_copy.describe(strings=False)
+
+    # SOLUTION NOT FOUND
     @timing
     def find_mismatched_dtypes(self):
         """
@@ -336,7 +368,7 @@ class DataTableBench(AbstractAlgorithm):
          - suggested_dtype: suggested data type
         """
         pass
-    
+
     @timing
     def check_allowed_char(self, column, pattern):
         """
@@ -344,28 +376,11 @@ class DataTableBench(AbstractAlgorithm):
         follow the provided pattern.
         For example, if the pattern [a-z] is provided the string
         'ciao' will return true, the string 'ciao123' will return false.
+        :param column column to check
+        :param pattern pattern to use
         """
-        pass
-
-    @timing
-    def drop_duplicates(self):
-        """
-        Drop duplicate rows.
-        """
-        import numpy as np
-        arr_dt = np.array(self.df_.to_list()).T
-        s = {tuple(i) for i in arr_dt}
-        indices = [i for i, value in enumerate(arr_dt) if tuple(value) in s]
-        self.df_ = self.df_[indices, :]
-        return self.df_
-
-    @timing
-    def drop_by_pattern(self, column, pattern):
-        """
-        Delete the rows where the provided pattern
-        occurs in the provided column.
-        """
-        pass
+        return self.df_[column].str.contains(pattern)
+    
 
     @timing
     def change_date_time_format(self, column, format):
@@ -373,36 +388,44 @@ class DataTableBench(AbstractAlgorithm):
         Change the date/time format of the provided column
         according to the provided formatting string.
         column datatype must be datetime
-        An example of format is '%m/%d/%Y'
+        An example of str_date_time_format is '%m/%d/%Y'
+        :param column column to format
+        :param str_date_time_format datetime formatting string
         """
-        import numpy as np
-        if self.df_[column].types[0] not in {"Type.date32", "Type.time", "Type.datetime"}:
-            from datetime import datetime
-            date_time = []
-            for date in self.df_[column].to_list()[0]:
-                try:
-                    date_time.append(datetime.strptime(date, format))
-                except Exception:
-                    date_time.append('')
-            self.df_[column] = np.array(date_time)
-        
-        date_time = []
-        for i in self.df_[column].to_list()[0]:
-            if i != '':
-                date_time.append(i.strftime(format))
-            else:   
-                date_time.append('')
-        self.df_[column] = np.array(date_time)
+        from dateutil import parser
+
+        self.df_[column] = self.df_[column].apply(
+            lambda x: parser.parse(str(x)) if x not in ["NaT", "nan", "", None] else ""
+        )
+        self.df_[column] = self.df_[column].apply(
+            lambda x: x.strftime(format) if x not in ["NaT", "nan", "", None] else ""
+        )
         return self.df_
-    
+
     @timing
     def set_header_case(self, case):
         """
         Put dataframe headers in the provided case
         Supported cases: "lower", "upper", "title", "capitalize", "swapcase"
-        (see definitions in pandas documentation)
+        :param case case format (lower, upper, title, capitalize, swapcase)
         """
-        pass
+        col = self.get_columns()
+        if case == "lower":
+            d = {el: el.lower() for el in col}
+            self.rename_columns(d)
+        elif case == "upper":
+            d = {el: el.upper() for el in col}
+            self.rename_columns(d)
+        elif case == "title":
+            d = {el: el.title() for el in col}
+            self.rename_columns(d)
+        elif case == "capitalize":
+            d = {el: el.capitalize() for el in col}
+            self.rename_columns(d)
+        elif case == "swapcase":
+            d = {el: el.swapcase() for el in col}
+            self.rename_columns(d)
+        return self.df_
 
     @timing
     def set_content_case(self, columns, case):
@@ -411,25 +434,26 @@ class DataTableBench(AbstractAlgorithm):
         Supported cases: "lower", "upper", "title", "capitalize", "swapcase"
         (see definitions in pandas documentation)
         Columns is a list of two column names; empty list for the whole dataframe
+        :param columns columns to modify
+        :param case case format (lower, upper, title, capitalize, swapcase)
         """
 
-        if len(columns) == 0:
-            columns = self.df_.names
-        import numpy as np
-        for column in columns:
-            arr = self.df_[:, columns].to_list()[0]
-            if case == "lower":
-                arr = list(map(str.lower,arr))
-            elif case == "upper":
-                arr =  list(map(str.upper,arr))
-            elif case == "title":
-                arr =  list(map(str.title,arr))
-            elif case == "capitalize":
-                arr =  list(map(str.capitalize,arr))
-            elif case == "swapcase":
-                 list(map(str.swapcase,arr))
-            self.df_[column] = np.array(arr)
+        if type(columns) == str:
+            columns = [columns]
 
+        if len(columns) == 0:
+            columns = self.get_columns()
+        for column in columns:
+            if case == "lower":
+                self.df_[column] = self.df_[column].str.lower()
+            elif case == "upper":
+                self.df_[column] = self.df_[column].str.upper()
+            elif case == "title":
+                self.df_[column] = self.df_[column].str.title()
+            elif case == "capitalize":
+                self.df_[column] = self.df_[column].str.capitalize()
+            elif case == "swapcase":
+                self.df_[column] = self.df_[column].str.swapcase()
         return self.df_
 
     @timing
@@ -437,41 +461,80 @@ class DataTableBench(AbstractAlgorithm):
         """
         Duplicate the provided columns (add to the dataframe with "_duplicate" suffix)
         Columns is a list of column names
+        :param columns columns to duplicate
         """
-        pass
-    
-    @timing
-    def pivot(self, index, columns, values, aggfunc):
-        """
-        Define the lists of columns to be used as index, columns and values respectively,
-        and the dictionary to aggregate ("sum", "mean", "count") the values for each column: {"col1": "sum"}
-        (see pivot_table in pandas documentation)
-        """
-        print("Pivot table is not supported yet, groupby is used instead")
-        return  self.df_[:, aggfunc(dt.f[values]), dt.by(index+columns) ]
-    
 
+        if type(columns) == str:
+            columns = [columns]
 
-
-    @timing
-    def unpivot(self, columns, var_name, val_name):
-        """
-        Define the list of columns to be used as values for the variable column,
-        the name for variable columns and the one for value column_name
-        """
-        pass
+        for column in columns:
+            self.df_.add_virtual_column(column + "_duplicate", self.df_.column)
+        return self.df_
 
     @timing
     def delete_empty_rows(self, columns):
         """
         Delete the rows with null values for all provided Columns
         Columns is a list of column names
+        :param columns columns to check
         """
         if columns == "all":
-            columns = list(self.df_.names)
+            columns = self.get_columns()
 
-        for column in columns:
-            self.df_ = self.df_[dt.f[column] != None, :]
+        self.df_ = self.df_.dropna(column_names=columns)
+        return self.df_
+
+    @timing
+    def string_to_date(self, columns):  # sourcery skip: extract-method
+        """
+        Convert string column to datetime64 columns
+        :param columns column to convert
+        """
+        if type(columns) == str:
+            columns = [columns]
+
+        map_month = {
+            "Gennaio": "01",
+            "Febbraio": "02",
+            "Marzo": "03",
+            "Aprile": "04",
+            "Maggio": "05",
+            "Giugno": "06",
+            "Luglio": "07",
+            "Agosto": "08",
+            "Settembre": "09",
+            "Ottobre": "10",
+            "Novembre": "11",
+            "Dicembre": "12",
+        }
+
+        map_day = {
+            "1": "01",
+            "2": "02",
+            "3": "03",
+            "4": "04",
+            "5": "05",
+            "6": "06",
+            "7": "07",
+            "8": "08",
+            "9": "09",
+        }
+
+        for col in columns:
+
+            self.split(col, " ", 2, ["day", "month", "year"])
+
+            self.set_content_case(["month"], "title")
+
+            self.df_ = self.replace(["month"], map_month, 0, False)
+            self.df_ = self.replace(["day"], map_day, 0, False)
+            self.df_[col] = (
+                (self.df_["year"] + "-" + self.df_["month"] + "-" + self.df_["day"])
+                .astype("datetime64")
+                .dt.date
+            )
+
+            self.delete_columns(["day", "month", "year"])
 
         return self.df_
 
@@ -481,113 +544,155 @@ class DataTableBench(AbstractAlgorithm):
         Split the provided column into splits + 1 columns named after col_names
         using the provided sep string as separator
         Col_names is a list of column names
+        :param column column to split
+        :param sep separator
+        :param splits number of splits, limit the number of splits
+        :param col_names name of the new columns
         """
-        pass
+
+        assert type(col_names) == list, "Columns parameter must be a list"
+
+        self.df_["split"] = self.df_[column].str.split(sep, splits)
+        for el in col_names:
+            self.df_[el] = self.df_.func.split_list(
+                self.df_["split"], col_names.index(el)
+            )
+
+        self.delete_columns("split")
+
+        return self.df_
 
     @timing
     def strip(self, columns, chars):
         """
         Remove the characters appearing in chars at the beginning/end of the provided columns
         Columns is a list of column names
+        :param columns columns to edit
+        :param chars characters to remove
         """
-        pass
-    
+
+        if type(columns) == str:
+            columns = [columns]
+
+        for column in columns:
+            self.df_[column] = self.df_[column].str.strip(chars)
+        return self.df_
+
     @timing
     def remove_diacritics(self, columns):
         """
         Remove diacritics from the provided columns
         Columns is a list of column names
+        :param columns columns to edit
         """
-        pass
 
+        if type(columns) == str:
+            columns = [columns]
+
+        for column in columns:
+            self.df_[column] = (
+                self.df_[column]
+                .str.normalize("NFKD")
+                .str.encode("ascii", errors="ignore")
+                .str.decode("utf-8")
+            )
+        return self.df_
+
+    # Vaex has an index not modifiable
+    # This index is useful in join or in group by operation
     @timing
     def set_index(self, column):
         """
         Set the provided column as index
+        :param column to use as index
         """
         pass
 
     @timing
-    def change_num_format(self, formats):
+    def change_num_format(self, formats: dict):
         """
         Round one ore more columns to a variable number of decimal places.
         formats is a dictionary with the column names as key and the number of decimal places as value.
+        :param formats new column(s) format(s).
+               E.g. {'col_name' : 2}
         """
-        pass
 
-    @timing
-    def calc_column(self, col_name, f, columns=None, apply = True):
-        """
-        Calculate the new column col_name by applying
-        the function f to the whole dataframe
-        """
-        if not columns:
-            columns = self.df_.names
-
-        if isinstance(f, str) and apply:
-            f = eval(f)
-
-            import numpy as np
-            arr = self.df_[:, columns].to_numpy()
-            self.df_[:, col_name] = np.apply_along_axis(f, 1, arr)
-        elif not apply:
-            if isinstance(f, str):
-                self.df_[:, col_name] = eval(f)
-        
+        for el in formats.items():
+            self.df_[el[0]] = self.df_[el[0]].round(el[1])
         return self.df_
-
 
     @timing
     def join(self, other, left_on=None, right_on=None, how="inner", **kwargs):
+        # sourcery skip: extract-method
         """
         Joins current dataframe (left) with a new one (right).
         left_on/right_on are the keys on which perform the equijoin
         how is the type of join
         **kwargs: additional parameters
-
         The result is stored in the current dataframe.
+        :param other dataframe to join
+        :param left_on key of the current dataframe to use for join
+        :param right_on key of the other dataframe to use for join
+        :param how type of join (inner, left, right, outer)
+        :param kwargs extra parameters
         """
-        if left_on != right_on:
-            other[left_on] = other[:, right_on]
-            other = other[:, [x for x in other.names if x != right_on]]
+        assert how != "outer", "Outer join is not supported"
+        if type(left_on) == str:
+            self.df_.join(
+                other, left_on=left_on, right_on=right_on, how=how, inplace=True
+            )
+        if (type(left_on) == list) and (type(right_on) == list):
+            assert len(left_on) == len(
+                right_on
+            ), "Left and right keys must have the same length"
+            self.df_["mergingcol"] = self.df_.apply(
+                lambda *x: f"{x}", arguments=[self.df_[c] for c in left_on]
+            )
+            other["mergingcol"] = other.apply(
+                lambda *x: f"{x}", arguments=[other[c] for c in right_on]
+            )
+            self.delete_columns(left_on)
+            self.df_.join(
+                other,
+                left_on="mergingcol",
+                right_on="mergingcol",
+                how=how,
+                inplace=True,
+            )
+            self.df_ = self.delete_columns(["mergingcol"])
 
-        other.key = left_on
-        self.df_ = self.df_[:, :, dt.join(other)]
         return self.df_
 
     @timing
-    def groupby(self, columns, f):
+    def calc_column(self, col_name, columns: list, f, apply=True):
         """
-        Aggregate the dataframe by the provided columns
-        then applies the function f on every group
+        Calculate the new column col_name by applying
+        the function f to the whole dataframe.
+        :param col_name column on which apply the function
+        :param f function to apply
         """
-        try:
-            return self.df_[:, eval(f), dt.by(columns)]
-        except Exception:
-            numeric_columns = [x for x in self.df_.names if self.df_[x].types[0] in [dt.Type.int32, dt.Type.int64, dt.Type.float32, dt.Type.float64]]
-            filt = self.df_.copy()
-            filt = filt[:, numeric_columns]
-            return filt[:, eval(f), dt.by(columns)]
-    
+        if not apply:
+            if type(columns) == str:
+                columns = [columns]
 
+            if type(f) == str:
+                f = eval(f)
+
+            self.df_[col_name] = self.df_.apply(f, arguments=columns)
+        else:
+            self.df_[col_name] = eval(f)
+        return self.df_
+    
     @timing
     def categorical_encoding(self, columns):
         """
+        See label encoding / ordinal encoding by sklearn
         Convert the categorical values in these columns into numerical values
         Columns is a list of column names
+        :param columns columns to encode
         """
-        import itertools as it
         for c in columns:
-            categories = {k: v for v, k in enumerate(set(self.df_[c].to_list()[0]))}
-            mixer = it.product([c], categories)
-            conditions = [(name, dt.f[name] == value, categories[value])
-                        for name, value in mixer]
-
-            for name, cond, value in conditions:
-                self.df_[cond, f'{name}_cat'] = value
-
-            self.df_[name] = self.df_[f'{name}_cat']
-            self.df_ = self.df_[:, [x for x in self.df_.names if x != f'{name}_cat']]
+            self.df_ = self.df_.ordinal_encode(c)
         return self.df_
 
     @timing
@@ -597,51 +702,88 @@ class DataTableBench(AbstractAlgorithm):
         Frac is a boolean:
         - if true, num is the percentage of rows to be returned
         - if false, num is the exact number of rows to be returned
+        :param frac percentage or exact number of samples to take
+        :param num if set to True uses frac as a percentage, otherwise frac is used as a number
         """
-        pass
+        return self.df_.sample(frac=num / 100) if frac else self.df_.sample(n=num)
 
     @timing
-    def append(self, other, ignore_index):
+    def append(self, other, ignore_index=False):
         """
         Append the rows of another dataframe (other) at the end of the provided dataframe
         All columns are kept, eventually filled by nan
         Ignore index is a boolean: if true, reset row indices
+        :param other other dataframe to append
+        :param ignore_index if set to True reset row indices
+        ignore_index is set to False by default: Vaex does not mantain index on rows
         """
-        pass
+
+        return self.df_.concat(other)
 
     @timing
     def replace(self, columns, to_replace, value, regex):
         """
-        Replace all occurrencies of to_replace (numeric, string, regex, list, dict) in the provided columns using the provided value
+        Replace all occurrences of to_replace (numeric, string, regex, list, dict) in the provided columns using the
+        provided value
         Regex is a boolean: if true, to_replace is interpreted as a regex
         Columns is a list of column names
+        :param columns columns on which apply the method
+        :param to_replace value to search (could be a regex)
+        :param value value to replace with
+        :param regex if True means that to_replace is a regex
         """
-        for c in columns:
-            self.df_[c] = dt.ifelse(dt.f[c] == to_replace, value, dt.f[c])
-            
+
+        if type(columns) == str:
+            columns = [columns]
+
+        for col in columns:
+            if type(to_replace) in [int, float]:
+                self.df_[col] = self.df_.func.where(
+                    self.df_[col] == to_replace, value, self.df_[col]
+                )
+            elif type(to_replace) == str:
+                self.df_[col] = self.df_[col].str.replace(
+                    to_replace, value, regex=regex
+                )
+            elif type(to_replace) == dict:
+                for k, v in to_replace.items():
+                    self.df_[col] = self.df_.func.where(
+                        self.df_[col] == k, v, self.df_[col]
+                    )
+            elif type(to_replace) == list:
+                for el in to_replace:
+                    self.df_[col] = self.df_.func.where(
+                        self.df_[col] == el, value, self.df_[col]
+                    )
+
         return self.df_
-    
+
     @timing
     def edit(self, columns, func):
         """
         Edit the values of the cells in the provided columns using the provided expression
         Columns is a list of column names
+        :param columns columns on which apply this method
+        :param func function to apply
         """
-        if isinstance(func, str):
-            func = eval(func)
-            
-        import numpy as np
-        for c in columns:
-            arr = np.array(self.df_[:, c])
-            arr = np.apply_along_axis(func, 1, arr)
-            self.df_[:, c] = arr
-        
+        if type(columns) == str:
+            columns = [columns]
+
+        for col in columns:
+            if type(func) == str:
+                func = eval(func)
+
+            self.df_[col] = self.df_[col].apply(func)
         return self.df_
 
+    # Data are immutable in vaex
     @timing
     def set_value(self, index, column, value):
         """
         Set the cell identified by index and column to the provided value
+        :param index row indices
+        :param column column name
+        :param value value to set
         """
         pass
 
@@ -650,18 +792,28 @@ class DataTableBench(AbstractAlgorithm):
         """
         Independently scale the values in each provided column in the range (min, max)
         Columns is a list of column names
+        :param columns columns on which apply this method
+        :param min min value
+        :param max max value
         """
-        pass
+        scaler = vaex.ml.MinMaxScaler(features=columns, feature_range=(min, max))
+        return scaler.fit_transform(self.df_)
 
     @timing
     def round(self, columns, n):
         """
         Round the values in columns using n decimal places
         Columns is a list of column names
+        :param columns columns on which apply this method
+        :param n decimal places
         """
-        import numpy as np
-        for c in columns:
-            self.df_[c] = np.around(self.df_[:, c].to_numpy(), decimals=n)
+
+        if type(columns) == str:
+            columns = [columns]
+
+        for col in columns:
+            self.df_[col] = self.df_[col].round(n)
+
         return self.df_
 
     @timing
@@ -670,43 +822,85 @@ class DataTableBench(AbstractAlgorithm):
         Return a list of duplicate columns, if exists.
         Duplicate columns are those which have same values for each row.
         """
-        pass
-    
+        cols = self.get_columns()
+
+        return [
+            (cols[i], cols[j])
+            for i in range(len(cols))
+            for j in range(i + 1, len(cols))
+            if self.df_[cols[i]] == self.df_[cols[j]]
+        ]
+
     @timing
-    def to_csv(self, path="./pipeline_output/datatable_output.csv", **kwargs):
+    def to_csv(self, path=f"./outputs/vaex_output.csv", **kwargs):
         """
         Export the dataframe in a csv file.
+        :param path path on which store the csv
+        :param kwargs extra parameters
         """
         import os
-        if not os.path.exists("./pipeline_output"):
-            os.makedirs("./pipeline_output")
 
-        # convert the column to string
-        for c in self.df_.names:
-            if str(self.df_[c].types[0]) == "Type.obj64":
-                self.df_[c] = np.array(self.df_[c].to_list()[0], dtype=str)
+        if not os.path.exists("./outputs"):
+            os.makedirs("./outputs")
 
-        self.df_.to_csv(path, **kwargs)
+        self.df_.export(path, progress=True)
+
+    @timing
+    def to_parquet(self, path="./outputs/vaex_output.parquet", **kwargs):
+        self.df_.export(path, progress=True)
 
     @timing
     def query(self, query, inplace=False):
         """
         Queries the dataframe and returns the corresponding
         result set.
-        :param query: a string with the query conditions, e.g. "col1 > 1 & col2 < 10"
+        :param query: a string with the query conditions, e.g. "(col1 > 1) & (col2 < 10)"
         :return: subset of the dataframe that correspond to the selection conditions
+        Query must be well formatted.
         """
         if inplace:
-            self.df_ = self.df_[eval(query), :]
+            self.df_ = self.df_.filter(query)
             return self.df_
-        return self.df_[eval(query), :]
-    
-    def force_execution(self):
-        self.df_.materialize()
-    
+
+        return self.df_.filter(query)
+
     @timing
-    def done(self):
+    def extract(self):
+        """Return a DataFrame containing only the filtered rows.
+
+        {note_copy}
+
+        The resulting DataFrame may be more efficient to work with when the original DataFrame is
+        heavily filtered (contains just a small number of rows).
+
+        If no filtering is applied, it returns a trimmed view.
+        For the returned df, len(df) == df.length_original() == df.length_unfiltered()
+
+        :rtype: DataFrame
+        """
+        self.df_ = self.df_.trim()
+        if self.df_.filtered:
+            self.df_._push_down_filter()
+            self.df_._invalidate_caches()
+        return self.df_
+
+    @vx.register_function(on_expression=True)
+    def split_list(x, i):
+        return np.array([el[i] for el in x], dtype=str)
+
+    def backup(self):
         pass
-        
-    def set_construtor_args(self, args):
+
+    def drop_by_pattern(self, column, pattern):
+        pass
+
+    def force_execution(self):
+        execute = self.df_.execute()
+        materialize = self.df_.materialize()
+        return execute, materialize
+    
+    def restore(self):
+        pass
+
+    def set_construtor_args(self, **kwargs):
         pass
