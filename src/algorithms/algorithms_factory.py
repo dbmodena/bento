@@ -8,7 +8,14 @@ class AlgorithmsFactory(BaseModel):
         if conf is None:
             conf = {}
         try:
-            if algorithm_name == "modin_dask":
+            if algorithm_name == "dask":
+                from src.algorithms.modules.dask_bench import DaskBench
+                return DaskBench(mem, cpu, pipeline)
+            elif algorithm_name == "koalas":
+                from src.algorithms.modules.koalas_bench import KoalasBench
+                return KoalasBench(conf)
+
+            elif algorithm_name == "modin_dask":
                 from src.algorithms.modules.modin_bench import ModinBench
                 return ModinBench(mem, cpu, type="dask", pipeline = pipeline)
 
